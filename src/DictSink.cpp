@@ -95,11 +95,6 @@ STDMETHODIMP DictSink::RecognitionStarting()
     sprintf(buf, "(get-buffer-info \"%s\" %d)\n", name, tick);
     client->send_cmd(buf);
     
-    GET_REPLY_INT(sel_start, "selection start");
-    GET_REPLY_INT(sel_end, "selection end");
-    GET_REPLY_INT(window_start, "window start");
-    GET_REPLY_INT(window_end, "window end");
-		      
     GET_REPLY_INT(modified, "is-modified");
 
     hRes = m_pIDgnDictCustom->Lock(0);
@@ -141,6 +136,11 @@ STDMETHODIMP DictSink::RecognitionStarting()
       client->change_text(c+12); // discard leading "change-text " */
     }
 
+    GET_REPLY_INT(sel_start, "selection start");
+    GET_REPLY_INT(sel_end, "selection end");
+    GET_REPLY_INT(window_start, "window start");
+    GET_REPLY_INT(window_end, "window end");
+		      
     hRes = m_pIDgnDictCustom->TextSelSet(sel_start, sel_end - sel_start);
     ReturnIfFailed(hRes,1, "IDgnDictCustom->TextSelSet() failed, hRes = 0x%X");
 
