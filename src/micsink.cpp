@@ -69,6 +69,9 @@ STDMETHODIMP MicSink::MicStateChanged(DgnMicStateConstants micState,
 				      BOOL bPaused)
 {
   Client *c;
+
+  // This access of clients is safe, because it's only changed from
+  // this thread, so no race condition can happen.
   for (c = clients; c != NULL; c = c->next) {
     switch (micState) {
     case dgnmicDisabled:
@@ -83,6 +86,7 @@ STDMETHODIMP MicSink::MicStateChanged(DgnMicStateConstants micState,
       break;
     }
   }
+
   return S_OK;
 }
     
