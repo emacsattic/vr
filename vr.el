@@ -6,6 +6,16 @@
 ;;
 ;; $Id$
 ;; $Log$
+;; Revision 1.6  2001/09/25 01:44:38  patrik
+;; Worked around the exit-minibuffer lockup by checking if the command
+;; about to be executed is one of the commands that never exits.  If so,
+;; it uses the deferred-function mechanism instead.  The commands for
+;; which this is done are kept in the variable vr-nonlocal-exit-commands.
+;;
+;; It seems to work well.  You cannot, of course, continue dictating
+;; after the New-Line in the minibuffer, but then doing so seems a little
+;; excessive as well...
+;;
 ;; Revision 1.5  2001/09/10 23:35:10  patrik
 ;; Smoothed out a number of rough edges concerning the continuous
 ;; commands.  Most of the changes are in pbvElse, but there were a number
@@ -431,7 +441,11 @@ reply when done.")
 
 (defvar vr-deferred-deferred-function nil)
 (defvar vr-deferred-deferred-deferred-function nil)
-
+(defvar vr-nonlocal-exit-commands
+  '(exit-minibuffer minibuffer-complete-and-exit)
+  "These commands never exit and can't be executed in the make-changes
+loop without screwing up the I/O.") 
+  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Key bindings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1043,7 +1057,13 @@ interactively, sets the current buffer as the target buffer."
 			(vr-ignore-changes 'command-insert ))
 		    (setq vr-queued-changes (cons cmd
 						  vr-queued-changes))
-		    (command-execute command nil)
+		    ;; exit-minibuffer is a command that does not
+		    ;; return properly , so to avoid timeouts waiting
+		    ;; for the replies, we put it in the deferred
+		    ;; function
+		    (if (memq command vr-nonlocal-exit-commands )
+			(setq vr-deferred-deferred-function command )
+		      (command-execute command nil))
 		    (vr-log "executed command: %s\n" command)
 		    ))
 		(run-hooks 'post-command-hook)
