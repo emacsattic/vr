@@ -1,5 +1,5 @@
 VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
-	  Available at <http://www.mit.edu/~bjaspan>.
+	Soon to be available at <http://emacs-vr-mode.sourceforge.net>.
 
 Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
 See the file COPYING.txt for terms of use.
@@ -56,17 +56,11 @@ Please read RELEASE-NOTES.txt before attemping to use this package.
 
 TECHNICAL SUPPORT
 
-VR Mode is a work in progress, with many obvious features and
-enhancements that can or should be made.  Bugs are also inevitable, of
-course.  For now, this package is primarily intended for use by
-developers who can find and fix bugs they discover or implement the
-features they want themselves, and then send me patches for the
-changes.
+VR Mode will be hosted on SourceForge, as soon as the project gets set
+up.  Then we should have a real e-mail list for support as well as
+public CVS access.  Hang in there... :-)
 
-However, anyone is free to make suggestions or report bugs.  I DO NOT
-GUARANTEE TECHNICAL SUPPORT FOR ANYONE, but since it is my goal to
-make VR Mode as useful is possible, I will of course try to be
-helpful.
+If you can't wait, e-mail patrik@ucolick.org.
 
 INSTALLATION
 
