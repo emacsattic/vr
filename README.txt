@@ -1,5 +1,5 @@
 VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
-	Soon to be available at <http://emacs-vr-mode.sourceforge.net>.
+	Available at <http://emacs-vr-mode.sourceforge.net>.
 
 Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
 See the file COPYING.txt for terms of use.
@@ -44,6 +44,9 @@ the Correction Dialog to work properly;
 - execute Emacs commands such as "find file" and "switch to buffer" by
 voice;
 
+- use continuous dictation commands to execute Emacs commands in the
+  middle of dictation;
+
 - and, intersperse any of the above features with using keyboard to
 make arbitrary changes to the Emacs buffers.
 
@@ -56,24 +59,26 @@ Please read RELEASE-NOTES.txt before attemping to use this package.
 
 TECHNICAL SUPPORT
 
-VR Mode will be hosted on SourceForge, as soon as the project gets set
-up.  Then we should have a real e-mail list for support as well as
-public CVS access.  Hang in there... :-)
-
-If you can't wait, e-mail patrik@ucolick.org.
+VR Mode is free software, and is provided as is, so there is no real
+tech support.  That said, we are of course interested in making VR
+mode as useful as possible, and would like to hear about any
+problems/bugs people encounter.  Please use the e-mail list
+emacs-vr-mode-users, or contact Patrik directly
+(grifgrif@users.SourceForge.net).
 
 INSTALLATION
 
 To install VR Mode, you must already have NaturallySpeaking 3.52 and
-GNU Emacs 19.34 installed on your Windows 95/98/NT system (see below
-for using VR Mode from non-Windows platforms).  Then:
+GNU Emacs 19.34 installed on your Windows 95/98/NT/2000 system (see
+below for using VR Mode with Emacs running on non-Windows platforms).
+Then:
 
 1.  If you do not have the DNS SDK installed, run DNSRDK.EXE to
-install the necesary Dragon run-time components for applications
+install the necessary Dragon run-time components for applications
 developed with the DNS SDK (e.g. VR Mode).  DNSRDK.EXE is available
-where you downloaded VR.ZIP.
+on the VR Mode homepage.
 
-2.  Extract the VR.ZIP file to the location of your choice
+2.  Extract the Zip file to the location of your choice
 (e.g. c:\Program Files\VRMode).
 
 3.  Instruct Emacs how and when to load the file "vr.el" and instruct
@@ -84,6 +89,21 @@ add the following text to your .emacs file:
 (setq vr-command "<vr-path>/vr.exe")
 
 using "/" as the directory separator.
+
+You also need to tell VR Mode the Windows class name and/or the title
+of the window inside which Emacs is running (for example, the Telnet
+or SSH window).  To do so,
+
+	(setq vr-win-class "Windows class name")
+	(setq vr-win-title "Window title")
+
+You can use one or both of vr-win-class or vr-win-title.  VR.EXE will
+choose the first window it finds for which vr-win-class and
+vr-win-title (or only one of them, if only one is specified) is a
+substring of the actual Windows class name or title. The Windows class
+name is normally identical to the name of the executable,
+i.e. "Emacs", unless you are running a remote Emacs over X Windows or
+in a terminal window.  More on running remote Emacs's below.
 
 USING VR MODE
 
@@ -224,6 +244,9 @@ to the Emacs command next-line.
 
 ** Repeating commands
 
+Commands can be repeated.  Look at the command list in vr.el, and you
+should be able to figure out how it works.
+
 * Using VR Mode over the network
 
 In the default configuration, VR Mode expects to run on the same
@@ -244,23 +267,18 @@ Emacs, but the following lines in your .emacs file:
 	(setq vr-host "<host running DNS/VR.EXE>")
 	(setq vr-port 1234)
 
-You also need to tell VR Mode the Windows class name and/or the title
-of the window inside which Emacs is running (for example, the Telnet
-or SSH window).  To do so,
-
-	(setq vr-win-class "Windows class name")
-	(setq vr-win-title "Window title")
-
-You can use one or both of vr-win-class or vr-win-title.  VR.EXE will
-choose the first window it finds for which vr-win-class and
-vr-win-title (or only one of them, if only one is specified) is a
-substring of the actual Windows class name or title.
-
 When you start VR Mode, it will connect to the remote VR.EXE on your
 Windows computer.  You still need your microphone plugged in to the
 soundcard on your Windows computer running NaturallySpeaking.  
 
 A single VR.EXE can handle multiple client connections at a time.
+
+Note that if you are running both local and remote Emacses, you can
+have the local Emacs start VR.EXE by not setting vr-host, and then
+having the remote instances connect to that same process.  Just make
+sure you have the same setting for vr-port in all instances of Emacs,
+and that they can be uniquely identified using the Windows class and
+title settings.
 
 * Key bindings
 
