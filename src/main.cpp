@@ -21,6 +21,8 @@
   USA
 */
 
+// $Id$
+
 #include <windows.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -392,6 +394,8 @@ BOOL CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	sprintf(buf, "(frame-activated %d)\n", (long) wParam);
 	c->send_cmd(buf);
       } else {
+	// inform the client that it has been deactivated
+	c->deactivate_frame ();
 #ifdef DEBUG_WINDOWS
 	debug_lprintf(1024,
 		      "Wnd (%d) %s/%s doesn't match %s/%s\r\n",

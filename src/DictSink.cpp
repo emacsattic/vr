@@ -111,27 +111,21 @@ STDMETHODIMP DictSink::RecognitionStarting()
     sprintf(buf, "(get-buffer-info \"%s\" %d)\n", name, tick);
     client->send_cmd(buf);
     
-    GET_REPLY_INT(sel_start, "selection start");
-    GET_REPLY_INT(sel_end, "selection end");
-    GET_REPLY_INT(window_start, "window start");
-    GET_REPLY_INT(window_end, "window end");
-		      
     GET_REPLY_INT(modified, "is-modified");
-
-    if (modified) {
-      GET_REPLY_INT(this->tick, "tick");
-      GET_REPLY_INT(length, "text length");
-      text = client->get_reply("text");
-      if (! text) {
-	debug_lprintf(64, "timeout waiting for text\r\n");
-	return E_FAIL;
-      }
-    }
 
     hRes = m_pIDgnDictCustom->Lock(0);
     ReturnIfFailed(hRes, 0, "IDgnDictCustom->Lock() failed, hRes = 0x%X");
 
     if (modified) {
+      // "modified" means that an unsynchronized change has occurred,
+      // so we reload the entire buffer contents 
+      
+      GET_REPLY_INT(length, "text length");
+      text = client->get_reply("text");
+      if (! text) {
+	debug_lprintf(64, "timeout waiting for text\r\n");
+	return E_FAIL;
+       }
       hRes = m_pIDgnDictCustom->TextSet(text, 0, length);
       ReturnIfFailed(hRes, 1, "IDgnDictCustom->TextSet() failed, hRes = 0x%X");
       
@@ -142,6 +136,28 @@ STDMETHODIMP DictSink::RecognitionStarting()
       free(text);
     }
 
+    // now ask for the changes that may have occured as a result of the
+    // get-buffer info call. 
+    int cnt;
+    char *c;
+    GET_REPLY_INT(cnt, "change count");
+    for (int i = 0; i < cnt; i++) {
+      c = client->get_reply("change");
+      if (! c) {
+	debug_lprintf(64, "timeout waiting for change\r\n");
+	m_pIDgnDictCustom->UnLock();
+	return E_FAIL;
+      }
+      client->change_text(c+12); // discard leading "change-text " */
+    }
+
+    GET_REPLY_INT(sel_start, "selection start");
+    GET_REPLY_INT(sel_end, "selection end");
+    GET_REPLY_INT(window_start, "window start");
+    GET_REPLY_INT(window_end, "window end");
+    //Most recent buffer tick
+    GET_REPLY_INT(this->tick, "tick");
+		      
     hRes = m_pIDgnDictCustom->TextSelSet(sel_start, sel_end - sel_start);
     ReturnIfFailed(hRes,1, "IDgnDictCustom->TextSelSet() failed, hRes = 0x%X");
 
@@ -156,6 +172,7 @@ STDMETHODIMP DictSink::RecognitionStarting()
     return S_OK; 
 }
 
+//the NaturallySpeaking callback used when dictation has changed the buffer
 STDMETHODIMP DictSink::MakeChanges(DWORD dwStart, DWORD dwNumChars,
 				   LPCTSTR pszText, DWORD dwSelStart,
 				   DWORD dwSelNumChars)

@@ -21,6 +21,8 @@
   USA
 */
 
+// $Id$
+
 #include <stdio.h>
 #include <assert.h>
 #include <windows.h>
@@ -156,7 +158,17 @@ void Client::activate_frame(HWND wnd)
       mb_lprintf(wnd, "VR Mode Error", MB_OK|MB_ICONERROR, 256,
 		 "IDgnDictCustom::HwndActivateSet() failed (0x%X)", hRes);
   }
+  // enable dictation again if it was disabled when the frame was deactivated
+  enable_dictation ();
+
   vcmdSink->activate_frame(wnd);
+}
+
+// this is used to prevent unnecessary get-buffer-info calls when the
+// frame is not in focus 
+void Client::deactivate_frame ()
+{
+  disable_dictation ();
 }
 
 void Client::disable_dictation()

@@ -21,6 +21,8 @@
   USA
 */
 
+// $Id$
+
 #ifndef __CLIENT_H__
 #define __CLIENT_H__
 
@@ -56,7 +58,7 @@ public:
   void kill_buffer(const char *);
   void change_text(char *);
   void activate_frame(HWND);
-
+  void deactivate_frame ();
   void enable_dictation();
   void disable_dictation();
 

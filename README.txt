@@ -1,5 +1,5 @@
 VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
-	Available at <http://emacs-vr-mode.sourceforge.net>.
+	Available at http://emacs-vr-mode.sourceforge.net.
 
 Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
 See the file COPYING.txt for terms of use.
