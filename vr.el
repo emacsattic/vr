@@ -751,6 +751,7 @@ interactively, sets the current buffer as the target buffer."
 	      (vr-log "report-change executing deferred function %s\n" vr-deferred-deferred-function)
 	      (setq vr-deferred-deferred-deferred-function
 		    vr-deferred-deferred-function )
+	      (setq vr-tricky-deferred-deferred tricky-deferred-function)
 	      (setq vr-deferred-deferred-function nil)
 	      (vr-execute-command
 	       vr-deferred-deferred-deferred-function))
@@ -997,7 +998,7 @@ interactively, sets the current buffer as the target buffer."
 	vr-text)
     (vr-log "get-buffer-info: current buffer: %s vr-buffer:%s\n"
 	    (buffer-name) vr-buffer)
-
+    (setq vr-tricky-deferred-deferred nil)
     (if	(not (equal vr-buffer (get-buffer buffer)))
 	(progn
 	  (ding)
@@ -1139,6 +1140,10 @@ interactively, sets the current buffer as the target buffer."
 		(vr-log "key-sequence %s %s %s\n" event
 			command last-command-char)
 		(run-hooks 'pre-command-hook)
+		;; See if we should resynchronize because of deferred
+		;; movement commands
+		(if vr-tricky-deferred-deferred
+		  (call-interactively 'vr-resynchronize))
 		(if (eq command 'self-insert-command)
 		    (command-execute command nil)
 		  (vr-log "command is not a self insert: %s\n"
