@@ -6,6 +6,25 @@
 ;;
 ;; $Id$
 ;; $Log$
+;; Revision 1.9.2.3  2001/12/17 11:01:36  grifgrif
+;; vr-zap-invisible and vr-restore-invisible now seem to work.  There
+;; were some issues with character positions and property searches
+;; running all the way to the end of the buffer, but they seem to be
+;; resolved.
+;;
+;; Dictating with point in a word marked vr-invisible now sends the
+;; proper commands to remove the invisible text from the
+;; NaturallySpeaking buffer and then reinsert it at the end of the
+;; utterance.  However, because the buffers disagree, character positions
+;; will also disagree, and this needs to be taking care of.  I've defined
+;; a variable vr-point-shift which contains the number of characters
+;; point should be shifted.  I think this is enough, but we may have to
+;; save both the length and the position of the chunks before and after
+;; point.  Anyway, the communication protocol needs to be redesigned
+;; again, because now we can't send the cursor position until after we've
+;; made this change and we know what the position in the
+;; NaturallySpeaking buffer actually should be.
+;;
 ;; Revision 1.9.2.2  2001/12/14 07:21:09  grifgrif
 ;; Changed the protocol so that we send a change count and changes even
 ;; if we perform a complete buffer resynchronization.  This is necessary,
@@ -498,7 +517,11 @@ reply when done.")
   '(exit-minibuffer minibuffer-complete-and-exit)
   "These commands never exit and can't be executed in the make-changes
 loop without screwing up the I/O.") 
-  
+
+(defvar vr-floating-invisible nil
+  "If non-nil, vr-zap-invisible has marked text \"removed\", and this
+needs to be found and restored in vr-restore-invisible.")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Key bindings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -987,12 +1010,7 @@ interactively, sets the current buffer as the target buffer."
     (vr-log "get-buffer-info: current buffer: %s vr-buffer:%s\n"
 	    (buffer-name) vr-buffer)
 
-    ;; deal with potential "vr-invisible" text
-    ;;(vr-zap-invisible)
-
-					;(save-excursion    (kill-word 1)
-    (if
-	(not (equal vr-buffer (get-buffer buffer)))
+    (if	(not (equal vr-buffer (get-buffer buffer)))
 	(progn
 	  (ding)
 	  (message "VR Mode: get-buffer-info: %s is not %s"
@@ -1017,12 +1035,14 @@ interactively, sets the current buffer as the target buffer."
 	      (setq vr-text (buffer-string))
 	      (vr-send-reply (length vr-text))
 	      (vr-send-reply vr-text))
-	    )
+	    
 	    ;; now we send possible queued-up changes resulting from
 	    ;; activity further up in this function
+	    ;; don't like this code duplication 
+	    ;; (vr-zap-invisible) 
 	    (vr-send-reply (length vr-queued-changes))
 	    (mapcar 'vr-send-reply vr-queued-changes)
-	    )
+	    ))
 
       ;;
       ;; If mouse-drag-overlay exists in our buffer, it
@@ -1066,8 +1086,11 @@ interactively, sets the current buffer as the target buffer."
 	(vr-send-reply (length vr-text))
 	(vr-send-reply vr-text)
 	(setq vr-resynchronize-buffer nil))
+
+      ;; deal with potential "vr-invisible" text
+      (vr-zap-invisible)
       ;; now we send possible queued-up changes resulting from
-      ;; activity further up in this function
+      ;; the above function
       (vr-send-reply (length vr-queued-changes))
       (mapcar 'vr-send-reply vr-queued-changes)))
 
@@ -1199,43 +1222,55 @@ interactively, sets the current buffer as the target buffer."
 ;; speaking, if it is next to point.
 (defun vr-zap-invisible ()
   (let ((before-invisible
-	 (get-text-property (- (point) 1) 'vr-invisible))
+	 (and (> (point) (point-min))
+	      (get-text-property (- (point) 1) 'vr-invisible)))
 	(after-invisible
-	 (get-text-property (point) 'vr-invisible)))
+	 (and (< (point) (point-max))
+	      (get-text-property (point) 'vr-invisible))))
+    (vr-log "entering zap-invisible: point is %d\n" (point))
+ 
     (if (not (or before-invisible after-invisible)) 
 	 ;; point is not touching invisible text, so we don't have to
 	 ;; worry
 	(setq vr-floating-invisible nil)
       ;; it IS touching invisible text.  Investigate further
       (let ((start-invisible (point)) ( end-invisible (point))
-	    invisible-string) 
+	    invisible-string (current-position (point)) )
 	(if before-invisible
 	    (setq start-invisible
-		  (previous-single-property-change (point)
+		  (previous-single-property-change (- (point) 1)
 						   'vr-invisible)))
 	(if after-invisible
 	    (setq end-invisible
 		  (next-single-property-change (point)
 					       'vr-invisible)))
 
-	(vr-log "zap-invisible: start %d end %d\n" start-invisible
-		end-invisible)
-
 	;; the sub string between start-invisible and end-invisible is
 	;; what should be hidden from NaturallySpeaking, and have its
 	;; invisible property marked "removed"
 	(setq invisible-string (buffer-substring start-invisible
 						 end-invisible))
+	(vr-log "zap-invisible: start %d end %d \"%s\"\n" start-invisible
+		end-invisible invisible-string)
+
 	;; mark this text string as removed
-	(put-text-property 1 (length invisible-string) 'vr-invisible
+	(put-text-property 0 (length invisible-string) 'vr-invisible
 			   'removed invisible-string)
 	(save-excursion
 	  (delete-region start-invisible end-invisible)
 	  (goto-char start-invisible)
 	  ;; hide the reinsertion from NaturallySpeaking
 	  (let ((vr-ignore-changes 'unconditionally))
-	    (insert invisible-string)))
+	    (insert invisible-string)
+	    ))
+	;; set this so restore-invisible knows to look for the removed
+	;; text
 	(setq vr-floating-invisible t)
+	;; Emacs and NaturallySpeaking will now disagree on point
+	;; values, set the displacement.
+	(setq vr-point-shift (- current-position start-invisible)) 
+	(goto-char current-position)
+	(vr-log "leaving zap-invisible: point is %d\n" (point))
 	))))
 
 
@@ -1245,8 +1280,9 @@ interactively, sets the current buffer as the target buffer."
 (defun vr-restore-invisible ()
   (if vr-floating-invisible
       (progn
+	(vr-log "entering restore-invisible: point is %d\n" (point))
 	;; there is text out there, and we have to find it...
-	(let ((start (point-min)))
+	(let ((start (point-min)) (current-position (point)))
 	  (while (setq start
 		       (text-property-any start (point-max)
 					  'vr-invisible 'removed))
@@ -1257,17 +1293,26 @@ interactively, sets the current buffer as the target buffer."
 	      ;; and should have that property changed and be
 	      ;; unveiled to NaturallySpeaking.
 	      (setq invisible-string (buffer-substring start end))
-	      (put-text-property 1 (length invisible-string)
+
+	      (vr-log "restore-invisible: start %d end %d \"%s\"\n"
+		      start end invisible-string)
+	      
+	      (put-text-property 0 (length invisible-string)
 				 'vr-invisible t invisible-string)
+	      ;; hide the deletion from NaturallySpeaking
 	      (save-excursion
-		;; hide the deletion from NaturallySpeaking
 		(let ((vr-ignore-changes 'unconditionally))
 		  (delete-region start end))
 		(goto-char start)
 		(insert invisible-string))
 	      ;; and update the position to look for more chunks
-	      (setq start end))))
-	(setq vr-floating-invisible nil))))
+	      (setq start end)))
+	  (goto-char current-position))
+	;; reset these 
+	(setq vr-floating-invisible nil)
+	(setq vr-point-shift 0)
+	(vr-log "leaving restore-invisible: point is %d\n" (point))
+)))
 
 		       
 	      
@@ -1300,7 +1345,7 @@ interactively, sets the current buffer as the target buffer."
 	       (setq vr-recognizing nil)
 	       ;; see if we have a visible text that might need to be
 	       ;; fixed
-	       ;;(vr-restore-invisible)
+	       (vr-restore-invisible)
 	       )) 
 	    (t
 	     (error "Unknown recognition state: %s" state)))))
