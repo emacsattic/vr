@@ -403,9 +403,10 @@ reply when done.")
 (defvar deferred-function nil)
 (defvar vr-deferred-deferred-function nil)
 (defvar vr-deferred-deferred-deferred-function nil)
-;; this is necessary if people aren't using the abbreviation functions
-(if (not (boundp 'fix-else-abbrev-expansion))
-    (defun fix-else-abbrev-expansion () nil))
+;; load the abbreviation function definitions
+(load "abbrev-cmds")
+;;(if (not (boundp 'fix-else-abbrev-expansion))
+  ;;  (defun fix-else-abbrev-expansion () nil))
 
 (defconst vr-nonlocal-exit-commands
   '(exit-minibuffer minibuffer-complete-and-exit)
