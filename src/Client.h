@@ -52,7 +52,8 @@ public:
   char *get_host();
   char *get_cmd();
   char *get_reply(const char *);
-
+  int flush_reply_stream ();
+  
   int create_buffer(BufMap *map, const char *name);
   int activate_buffer(const char *);
   void kill_buffer(const char *);
