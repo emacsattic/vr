@@ -36,6 +36,7 @@ public:
   void send_line(int sock, int clnt, const char *cmd);
   char *get_line(int sock, int clnt, const char *desc);
   void notify();
+  int flush_stream (int sock);
 
   int run(); /* forced public by start_io */
 
