@@ -6,6 +6,11 @@
 ;;
 ;; $Id$
 ;; $Log$
+;; Revision 1.7  2001/11/08 07:03:08  patrik
+;; When quitting a remote Emacs, it would sometimes close the window
+;; before VR.EXE had had time to process the shutdown, so I added a delay
+;; in the kill-Emacs hook, after turning VR mode off.  Seems to work.
+;;
 ;; Revision 1.6  2001/09/25 01:44:38  patrik
 ;; Worked around the exit-minibuffer lockup by checking if the command
 ;; about to be executed is one of the commands that never exits.  If so,
@@ -1298,6 +1303,7 @@ off -> on, {on,sleeping} -> off."
 
 (defun vr-kill-emacs ()
   (vr-mode 0)
+  (sleep-for 1)
   t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
