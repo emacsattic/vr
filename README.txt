@@ -2,7 +2,8 @@ VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
 	Available at http://emacs-vr-mode.sourceforge.net.
 
 Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
-See the file COPYING.txt for terms of use.
+See the file COPYING.txt for terms of use. (The file abbrev-cmds is
+Copyright 2000 Hans van Dam <hans_van_dam@hetnet.nl>.)
 
 TABLE OF CONTENTS
 
@@ -26,6 +27,7 @@ INTRODUCTION
 VR Mode integrates the features of Dragon NaturallySpeaking with GNU
 Emacs.  You must already have and be familiar with NaturallySpeaking
 3.52 and GNU Emacs 19.34 (or newer versions) in order to use VR mode.
+However, there are problems with Emacs 21.x.
 
 VR Mode is implemented as an Emacs "minor mode" that can be enabled in
 any major mode.  With VR Mode, you can:
@@ -45,7 +47,9 @@ the Correction Dialog to work properly;
 voice;
 
 - use continuous dictation commands to execute Emacs commands in the
-  middle of dictation;
+  middle of dictation (this feature is from the file pbvlisp.el by
+  Hans van Dam, now included in VR mode as abbrev-cmds.el, and is
+  copyright him.)
 
 - and, intersperse any of the above features with using keyboard to
 make arbitrary changes to the Emacs buffers.
@@ -85,6 +89,7 @@ on the VR Mode homepage.
 VR mode where to find the subprocess executable VR.EXE.  To do this,
 add the following text to your .emacs file:
 
+(add-to-list 'load-path (substitute-in-file-name "<vr-path>"))
 (autoload 'vr-mode "<vr-path>/vr" "" t nil)
 (setq vr-command "<vr-path>/vr.exe")
 
@@ -107,6 +112,7 @@ in a terminal window.  More on running remote Emacs's below.
 
 USING VR MODE
 
+
 * Getting Started
 
 To enable VR mode, run the command M-x vr-mode, which runs the VR Mode
@@ -124,6 +130,7 @@ currently voice activated, and it is a hyphen ("-") otherwise.
 - The remainder of <micstate> is either "on", "off", or "sleep",
 according to the current state of the global Dragon NaturallySpeaking
 microphone object in the Windows system tray.
+
 
 * Voice-activating buffers
 
@@ -165,6 +172,7 @@ the buffer named "*scratch*" and any buffer whose name ends with
 	(setq vr-activation-list '((not "^\*info\*$") ".*"))
 
 then all buffers except "*info*" (Info mode) will be voice activated.
+
 
 * Voice commands
 
@@ -247,6 +255,46 @@ to the Emacs command next-line.
 Commands can be repeated.  Look at the command list in vr.el, and you
 should be able to figure out how it works.
 
+
+* Abbreviation commands (continuous dictation commands)
+
+For some commonly used commands its desirable to not have to pause
+between utterances to have NaturallySpeaking recognize it is a
+command.  The continuous commands use Emacs's abbrev feature to run
+commands when a certain string is typed into the buffer.  Look in the
+file abbrev-cmds.el, and you will see definitions looking like this:
+
+    ("forwardchar" "" (lambda ()  (deferred-execution 'forward-char t))
+     0)
+
+This defines an Emacs abbrev "forwardchar", so that when this is typed
+the command forward-char will be executed. The next step is to start
+the NaturallySpeaking Vocabulary Editor and add a word with written
+form "*forwardchar*" and spoken form "forward char", setting its
+properties to "no preceding or following space".  The idea is that
+when you say "forward char", NaturallySpeaking will type
+"*forwardchar*" into the buffer, and Emacs will recognize this as an
+abbreviation for running the command forward-char.  (The asterisks are
+necessary because you might be saying this in the middle of a word and
+the abbrev has to be surrounded by non-alphanumeric characters.  The
+asterisks are deleted.)
+
+The end result of all this is that you can say things like "tab-key
+next line tab-key forward word kill word hello next line beginning of
+line" without stopping.  There are drawbacks -- you can't "scratch
+that", and if any part of the utterance is not recognized correctly,
+the results are unpredictable.  But overall, it's a very useful
+feature.
+
+To enable this, but the following in your .emacs file:
+
+(setq-default abbrev-mode t)
+(load "abbrev-cmds")
+
+(VR mode will do the last step, so you only need to manually load the
+file if you want to use the abbreviations before starting VR mode.)
+ 
+
 * Using VR Mode over the network
 
 In the default configuration, VR Mode expects to run on the same
@@ -262,7 +310,7 @@ example,
 	VR.EXE -port 1234
 
 Then, on the remote computer on which you want to run VR Mode inside
-Emacs, but the following lines in your .emacs file:
+Emacs, put the following lines in your .emacs file:
 
 	(setq vr-host "<host running DNS/VR.EXE>")
 	(setq vr-port 1234)
@@ -278,7 +326,8 @@ have the local Emacs start VR.EXE by not setting vr-host, and then
 having the remote instances connect to that same process.  Just make
 sure you have the same setting for vr-port in all instances of Emacs,
 and that they can be uniquely identified using the Windows class and
-title settings.
+title settings. 
+
 
 * Key bindings
 
