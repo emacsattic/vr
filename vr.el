@@ -6,6 +6,11 @@
 ;;
 ;; $Id$
 ;; $Log$
+;; Revision 1.9  2001/11/17 01:22:03  patrik
+;; Defined deferred-function as a variable, so you don't have to worry
+;; about that if you don't load pbvElse.  It also changed the list of
+;; nonlocal exit commands to a constant.
+;;
 ;; Revision 1.8  2001/11/08 08:23:57  patrik
 ;; Fixed a little bug concerning the positioning of point in
 ;; make-changes.  Before we would only reposition it manually if the user
@@ -459,9 +464,12 @@ reply when done.")
 (defvar vr-resynchronize-buffer nil)
 (make-variable-buffer-local 'vr-resynchronize-buffer)
 
+;; all of these variables have to do with abbreviation expansion functions
+(defvar deferred-function nil)
 (defvar vr-deferred-deferred-function nil)
 (defvar vr-deferred-deferred-deferred-function nil)
-(defvar vr-nonlocal-exit-commands
+
+(defconst vr-nonlocal-exit-commands
   '(exit-minibuffer minibuffer-complete-and-exit)
   "These commands never exit and can't be executed in the make-changes
 loop without screwing up the I/O.") 
