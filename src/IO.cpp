@@ -53,6 +53,7 @@ void IO::start()
 {
   assert(CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)start_io,
 		      this, 0, &tid) != NULL);
+  assert (client_mutex = CreateMutex (NULL, FALSE, NULL));
   wait();
 }
 
@@ -233,11 +234,17 @@ int IO::run()
     
     FD_ZERO(&rfs);
     FD_SET(listener, &rfs);
+
+    /*Ensure exclusive access to clients. */
+    WaitForSingleObject (client_mutex, INFINITE);
     for (c = clients; c != NULL; c = c->next) {
+      ReleaseMutex (client_mutex);
       if (c->emacs_sock != -1)
 	FD_SET(c->emacs_sock, &rfs);
+      WaitForSingleObject (client_mutex, INFINITE);
     }
-
+    ReleaseMutex (client_mutex);
+    
     n = select(0 /* ignored */, &rfs, NULL, NULL, NULL);
     if (done) {
       debug_lprintf(64, "IO: done\r\n");
@@ -261,12 +268,22 @@ int IO::run()
       wait();
     }
 
-    for (c = clients; c != NULL; c = c->next) {
+    // We have to ensure exclusive access to clients here, because the
+    // other thread occasionally adds or removes objects from the list.
+    WaitForSingleObject (client_mutex, INFINITE);
+    c = clients;
+    while(c!=NULL) {
+      ReleaseMutex (client_mutex);
       if (c->emacs_sock != -1 && FD_ISSET(c->emacs_sock, &rfs)) {
 	PostMessage(wnd, WM_COMMAND, IDC_DO_COMMAND, (LPARAM) c);
 	wait();
+	break; // avoid using the possibly dangling pointer c
       }
+      WaitForSingleObject (client_mutex, INFINITE);
+      c = c->next;
     }
+    ReleaseMutex (client_mutex);
+    
   }
   return 1;
 }
