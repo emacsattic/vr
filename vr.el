@@ -6,6 +6,15 @@
 ;;
 ;; $Id$
 ;; $Log$
+;; Revision 1.9.2.2  2001/12/14 07:21:09  grifgrif
+;; Changed the protocol so that we send a change count and changes even
+;; if we perform a complete buffer resynchronization.  This is necessary,
+;; because we can't get rid of the invisible text when we send the entire
+;; buffer contents.
+;;
+;; Also largely implemented vr-zap-invisible and vr-restore-invisible,
+;; but they don't quite work yet and are commented out.
+;;
 ;; Revision 1.9.2.1  2001/12/14 02:15:14  grifgrif
 ;; Inserted the necessary machinery for sending changes from the
 ;; get-buffer-info call.  This only consists of setting vr-ignore-changes
@@ -979,7 +988,7 @@ interactively, sets the current buffer as the target buffer."
 	    (buffer-name) vr-buffer)
 
     ;; deal with potential "vr-invisible" text
-    (vr-zap-invisible)
+    ;;(vr-zap-invisible)
 
 					;(save-excursion    (kill-word 1)
     (if
@@ -1002,18 +1011,18 @@ interactively, sets the current buffer as the target buffer."
 	    (vr-send-reply (1- (window-start)))
 	    (vr-send-reply (1- (window-end)))
 	    (if (and (not vr-resynchronize-buffer) (eq our-tick dns-tick))
-		(progn
-		  (vr-send-reply "0 not modified")
-		  ;; now we send possible queued-up changes resulting from
-		  ;; activity further up in this function
-		  (vr-send-reply (length vr-queued-changes))
-		  (mapcar 'vr-send-reply vr-queued-changes))
+		(vr-send-reply "0 not modified")
 	      (vr-send-reply "1 modified")
 	      (vr-send-reply (format "%d" (buffer-modified-tick)))
 	      (setq vr-text (buffer-string))
 	      (vr-send-reply (length vr-text))
 	      (vr-send-reply vr-text))
-	    ))
+	    )
+	    ;; now we send possible queued-up changes resulting from
+	    ;; activity further up in this function
+	    (vr-send-reply (length vr-queued-changes))
+	    (mapcar 'vr-send-reply vr-queued-changes)
+	    )
 
       ;;
       ;; If mouse-drag-overlay exists in our buffer, it
@@ -1047,12 +1056,7 @@ interactively, sets the current buffer as the target buffer."
       ;;
 
       (if (and (not vr-resynchronize-buffer) (eq our-tick dns-tick))
-	  (progn
 	    (vr-send-reply "0 not modified")
-	    ;; now we send possible queued-up changes resulting from
-	    ;; activity further up in this function
-	    (vr-send-reply (length vr-queued-changes))
-	    (mapcar 'vr-send-reply vr-queued-changes))
 	;; we need to dump the entire buffer contents
 	(if vr-resynchronize-buffer
 	    (vr-log "buffer resynchronization requested \n"))
@@ -1061,7 +1065,11 @@ interactively, sets the current buffer as the target buffer."
 	(setq vr-text (buffer-string))
 	(vr-send-reply (length vr-text))
 	(vr-send-reply vr-text)
-	(setq vr-resynchronize-buffer nil))))
+	(setq vr-resynchronize-buffer nil))
+      ;; now we send possible queued-up changes resulting from
+      ;; activity further up in this function
+      (vr-send-reply (length vr-queued-changes))
+      (mapcar 'vr-send-reply vr-queued-changes)))
 
 ;(sleep-for 0 100)
 ;  (yank)
@@ -1185,6 +1193,86 @@ interactively, sets the current buffer as the target buffer."
     (vr-send-reply "-1"))
   t)
 
+
+;; This function deals with tricking NaturallySpeaking into thinking
+;; that text with the "vr-invisible" property disappears when we start
+;; speaking, if it is next to point.
+(defun vr-zap-invisible ()
+  (let ((before-invisible
+	 (get-text-property (- (point) 1) 'vr-invisible))
+	(after-invisible
+	 (get-text-property (point) 'vr-invisible)))
+    (if (not (or before-invisible after-invisible)) 
+	 ;; point is not touching invisible text, so we don't have to
+	 ;; worry
+	(setq vr-floating-invisible nil)
+      ;; it IS touching invisible text.  Investigate further
+      (let ((start-invisible (point)) ( end-invisible (point))
+	    invisible-string) 
+	(if before-invisible
+	    (setq start-invisible
+		  (previous-single-property-change (point)
+						   'vr-invisible)))
+	(if after-invisible
+	    (setq end-invisible
+		  (next-single-property-change (point)
+					       'vr-invisible)))
+
+	(vr-log "zap-invisible: start %d end %d\n" start-invisible
+		end-invisible)
+
+	;; the sub string between start-invisible and end-invisible is
+	;; what should be hidden from NaturallySpeaking, and have its
+	;; invisible property marked "removed"
+	(setq invisible-string (buffer-substring start-invisible
+						 end-invisible))
+	;; mark this text string as removed
+	(put-text-property 1 (length invisible-string) 'vr-invisible
+			   'removed invisible-string)
+	(save-excursion
+	  (delete-region start-invisible end-invisible)
+	  (goto-char start-invisible)
+	  ;; hide the reinsertion from NaturallySpeaking
+	  (let ((vr-ignore-changes 'unconditionally))
+	    (insert invisible-string)))
+	(setq vr-floating-invisible t)
+	))))
+
+
+;; This function restores (whatever is left, nothing if it was an else
+;; placeholder) the text that was hidden from NaturallySpeaking when
+;; the utterance started.
+(defun vr-restore-invisible ()
+  (if vr-floating-invisible
+      (progn
+	;; there is text out there, and we have to find it...
+	(let ((start (point-min)))
+	  (while (setq start
+		       (text-property-any start (point-max)
+					  'vr-invisible 'removed))
+	    (let ((end (next-single-property-change start
+						    'vr-invisible))
+		  invisible-string)
+	      ;; The string between start and end is marked "removed",
+	      ;; and should have that property changed and be
+	      ;; unveiled to NaturallySpeaking.
+	      (setq invisible-string (buffer-substring start end))
+	      (put-text-property 1 (length invisible-string)
+				 'vr-invisible t invisible-string)
+	      (save-excursion
+		;; hide the deletion from NaturallySpeaking
+		(let ((vr-ignore-changes 'unconditionally))
+		  (delete-region start end))
+		(goto-char start)
+		(insert invisible-string))
+	      ;; and update the position to look for more chunks
+	      (setq start end))))
+	(setq vr-floating-invisible nil))))
+
+		       
+	      
+	
+
 ;; This function is called by Dragon when it begins/ends mulling over an
 ;; utterance; delay key and mouse events until it is done.  This
 ;; ensures that key and mouse events are not handled out of order
@@ -1212,7 +1300,8 @@ interactively, sets the current buffer as the target buffer."
 	       (setq vr-recognizing nil)
 	       ;; see if we have a visible text that might need to be
 	       ;; fixed
-	       (vr-restore-invisible))) 
+	       ;;(vr-restore-invisible)
+	       )) 
 	    (t
 	     (error "Unknown recognition state: %s" state)))))
   t)
