@@ -1,0 +1,350 @@
+VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
+
+Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
+See the file COPYING.txt for terms of use.
+
+Introduction
+----------------------------------------------------------------------
+
+THIS DOCUMENT IS NO LONGER UP TO DATE.  No one else has yet expressed
+interest in helping develop VR Mode, so my motivation to keep the
+design doc current has waned.
+
+VR Mode is implemented as an Emacs minor mode with an associated
+subprocess, VR.EXE.  The subprocess uses the various IDgn COM
+interfaces to interact with NaturallySpeaking, and uses its
+stdin/stdout pipes to communicate with Emacs.
+
+The core idea behind the IDgn interfaces is that an application
+instantiates objects to control NaturallySpeaking and registers
+"sinks" to receive callbacks from NaturallySpeaking when the user
+performs various actions.  The most important interface used by VR.EXE
+is IDgnDictCustom and the associated IDgnDictCustomNotifySink, which
+allows VR.EXE to inform NaturallySpeaking about the current state of
+the Emacs buffer and to receive from NaturallySpeaking text
+representing recognized dictation.  To understand how this works, read
+the documentation included in the DNS SDK for the
+RecognitionStarting() and MakeChanges() methods of
+IDgnDictCustomNotifySink.
+
+The core idea behind the Emacs/VR.EXE communication is that each
+process can send the other process simple ASCII-text commands that
+then perform necessary actions.  VR.EXE sends Emacs commands necessary
+to learn about the current buffer state (in
+DictSink::RecognitionStarting()) and to change the current text in the
+buffer (in DictSink::MakeChanges()).  Emacs sends VR.EXE commands to
+change the state of the microphone or to cause VR.EXE to exit.
+
+This documentation does not attempt to be a tutorial on COM or Emacs
+Lisp, although some basic concepts are explained.  It also does not
+completely describe the design of VR Mode, but itshould give enough of
+an overview to get started.
+
+VR Mode Source Code, and Building it Yourself
+----------------------------------------------------------------------
+
+The VR Mode source code includes:
+
+- vr.el: Contains the Emacs Lisp source code for the VR minor mode and
+supporting functions.
+
+- main.cpp: Contains WinMain(), the window event-handling procedure, and
+code to initialize the IDgn COM objects and other globals.
+
+- DictSink.{h,cpp}: Contains class DictSink, a IDgnDictCustomNotifySink
+that performs the primary function of editing the VR Mode target
+buffer.
+
+- MicSink.{h,cpp}: Contains class MicSink, a IDgnMicrophoneNotifySink
+that handles notifications of change in microphone status and to
+mitigate these changes to VR Mode.
+
+- IO.{h,cpp}: Contains class IO, which handles all direct vacation
+between VR.EXE in Emacs over stdin/stdout (see below).
+
+- VCmdSink.{h,cpp}: Contains class VCmdSink, an IDgnVCmdNotifySink
+that handles execution of voice commands.
+
+- hook.{c,h}: Implements HOOK.DLL which allows VR.EXE to track changes
+to the current active Emacs frame.  Unfortunately, NaturallySpeaking
+does not currently allow this to be useful.
+
+- buffer.c: Routines that maintain the linked list mapping Emacs
+buffer names to NaturallySpeaking dictation objects.
+
+- vr.rc, resources.h: Standard Visual C++ resource files.
+
+VR.EXE is developed using the Visual C++ compiler (I edit my source
+code in Emacs, of course :-).  A VC++ project file, vr.dsp, is
+included, along with a GNU Make Makefile and NMAKE makefiles for
+VR.EXE and HOOK.DLL.  You can build VR.EXE and HOOK.DLL with VC++ or
+gmake/nmake.  You will need to have the Dragon NaturallySpeaking SDK
+(DNSSDK.EXE) installed, and you also need the file speech.h from the
+Microsoft SAPI 4.0 distribution.  To obtain these files, visit
+http://developer.dragonsys.com.
+
+You DO NOT need the DNS SDK or speech.h to modify Emacs Lisp code in
+vr.el.  Of course, you will need to know Emacs Lisp.  Emacs Lisp is
+extensively documented in an Info file that should be available
+wherever you got Emacs.
+
+The VR Mode Protocol
+----------------------------------------------------------------------
+
+Emacs and VR.EXE communicate via a simple text-based request/reply
+protocol.  Either application can initiate a command and receive a
+reply.  The protocol is designed to be easy for each application to
+generate and parse, and as the applications operate in vastly
+different environments (Lisp and C++), the protocol is not
+syntacticaly symmetric.
+
+Commands sent from VR.EXE to Emacs are formatted as Lisp S Expressions
+(sexps), which are essentially sequences of tokens enclosed in
+parentheses and which are very easy to parse in Lisp.  The first token
+is an unquoted string (a Lisp "symbol") that indicates the command to
+be executed.  Subsequent tokens are integers or quoted strings.  In
+all quoted strings, newlines (\n's), double-quote marks ("), and
+backslashes (\) are all quoted with backslashes in the standard Unix
+style.
+
+Commands sent from Emacs to VR.EXE are simple newline-terminated
+strings containing one data value each, with a leading prefix
+character indicating whether the string is a command or a reply to a
+command.  The three prefix characters are: "c", indicating this is a
+command; "r", indicating this is a reply to a command; and "t",
+indicating this is a reply to a command that contains a text length
+followed by a newline and then the exact number of bytes of text
+indicated by the length.  The reason behind this somewhat bizarre
+protocol syntax will become clear below.
+
+Commands initiated by VR.EXE include:
+
+(starting VERSION)
+NO REPLY
+
+VR.EXE can generate this command when it first starts so that VR Mode
+can verify the protocol version it is using.  Actually, though, this
+command is not presently used.
+
+(started)
+NO REPLY
+
+VR.EXE generates this command when the NaturallySpeaking system has
+been initialize.  VR Mode responds by invoking (vr-process-startup)
+which defines all VR Mode voice commands and activates the current
+buffer, if appropriate.
+
+(frame-activated HWND)
+NO REPLY
+
+VR.EXE generates this command whenever an Emacs frame is selected.
+This allows VR Mode to voice activate the selected buffer in the new
+frame if appropriate.  However, NaturallySpeaking dictation objects
+will not work if you try to edit a buffer in an Emacs frame other
+than the one in which you created it.
+
+(mic-state STATE)
+NO REPLY
+
+VR.EXE generates this command whenever the microphone state changes.
+STATE can be one of "off", "on", or "sleep".  The command is generated
+by the MicSink::MicStateChanged method.  Emacs sends no reply.
+
+(get-buffer-info TICK)
+r SELECTION-START
+r SELECTION-END
+r WINDOW-START
+r WINDOW-END
+r IS-MODIFIED
+If IS-MODIFIED is non-zero:
+t TEXT-LENGTH
+TEXT
+
+VR.EXE generates this command in order to learn about the current
+state of the Emacs buffer.  The command is generated by the
+DictSink::RecognitionStarting() method, and information in the reply
+is passed on to the IDgnDictCustom object performing the recognition.
+All the reply values are integers, except that TEXT, if present, is
+exactly TEXT-LENGTH bytes containing the contents of the Emacs buffer.
+
+Note that TEXT always contains the ENTIRE buffer.  This is
+inefficient, and hampers the ability of Correct That to match voice
+and text.  However, use of the TICK argument usually allows VR Mode
+to send only incremental changes (see make-changes). 
+
+(make-changes REPL-START REPL-LENGTH TEXT SEL-START SEL-LENGTH)
+r TICK
+r CHANGES
+r change-spec
+  ...
+
+VR.EXE generates this command in order to tell Emacs to change the
+contents of the buffer.  The command is generated by the
+DictSink::MakeChanges() method, and simply passes the information
+received in that method to Emacs.  REPL-START and REPL-LENGTH indicate
+text to be deleted from the buffer and the starting position at which
+to insert TEXT.  SEL-START and SEL-LENGTH indicate text to be
+"selected" after the command is complete.
+
+VR Mode replies with TICK, the buffer modification tick for the
+current buffer after the changes instructed in make-changes have been
+made.  The get-buffer-info command uses this value to determine when
+it is necessary to tell VR.EXE to completely replace its idea of the
+buffer contents.
+
+VR Mode also replies with CHANGES, a count, and then that many change
+specifiers.  These change specifiers indicate changes to the inserted
+text that VR Mode made while processing the make-changes command (for
+example, to implement auto fill mode).  The format of the change
+specifiers is the same as in the change-text command described below,
+except that the TICK field is invalid and should not be used.
+
+(heard-command COMMAND)
+
+Dealer.EXE generates this command whenever the TEXT argument of a
+previous define-command command is recognized.  VR Mode executes the
+interactive command whose symbol is COMMAND.
+
+Commands initiated by Emacs are: 
+
+c exit
+
+Causes VR.EXE to disconnect from NaturallySpeaking engine and exit
+cleanly.  VR Mode generates this command when the user runs vr-quit.
+
+c toggle-mic
+
+Causes VR.EXE to change the state of the microphone as follows: off ->
+on, on -> off, sleep -> off.  VR Mode generates this command when the
+user runs vr-toggle-mic.
+
+c activate-buffer NAME
+
+Causes VR.EXE to activate the NaturallySpeaking dictation objects for
+the buffer named NAME, creating anyone if necessary.  VR Mode sends
+this command every time a new buffer is selected that should be
+activated according to vr-activation-list.
+
+c deactive-buffer
+
+Causes VR.EXE to deactivate the NaturallySpeaking dictation objects
+that is currently activated.  VR Mode sends this command when a new
+buffer is selected that should not be activated according to
+vr-activation-list.
+
+c kill-buffer NAME
+
+Causes VR.EXE to destroy the NaturallySpeaking dictation objects
+initiated with the Emacs buffer NAME.  VR Mode sends this command
+every time and Emacs buffer is killed.
+
+c change-text NAME BEG END LEN TICK TEXT
+
+Causes VR.EXE to instruct the NaturallySpeaking dictation objects
+initiated with the Emacs buffer NAME to replace LEN characters
+starting at BEG with the text TEXT (the argument END is not used).
+The argument LEN may be zero if text is being inserted and the
+argument TEXT may be empty if text is being deleted.  The argument
+TICK contains the buffer modification tick of the Emacs buffer after
+this change-text command is completed.
+
+c define-command |TEXT|COMMAND
+
+Causes VR.EXE to send VR Mode the command (heard-command COMMAND)
+whenever the text TEXT is recognized. 
+
+c show-window
+c hide-window
+
+Causes VR.EXE to show/hide the VR Mode Protocol Trace window, which is
+all of the data that VR.EXE sends and receives (see also the VR Mode
+vr-log-send and vr-log-read variables).  VR Mode generates these
+commands when the user runs vr-show-window and vr-hide-window.
+
+VR Mode in Emacs Lisp
+----------------------------------------------------------------------
+
+The VR minor mode in Emacs is implemented in the file vr.el.  Like
+most minor modes, it is toggled on an off by the function vr-mode.
+When toggling the mode on, vr-mode starts VR.EXE as an asynchronous
+child process of Emacs and sets its filter and sentinel functions to
+vr-process-filter and vr-process-filter.  It also sets the variable
+vr-mode to t (true), which activates the VR Mode keymap and,
+incidentally, causes "VR" to be displayed mode line.  The
+vr-process-filter and VR keymap (vr-prefix-map) are the heart of the
+VR Mode implementation.
+
+In Emacs, a process filter function receives all output sent to the
+child's stdout (there are not many guarantees about the way in which
+the output will arrive except that it will arrive in the order in
+which it was sent, so vr-process-filter starts by collecting in the
+variable vr-reading-string until a complete protocol statement is
+received; it is also possible for multiple protocol statement to
+arrive in a single invocation of vr-process-filter, so the function
+must be sure to act on all of them).  For each complete protocol
+statement, vr-process-filter parses the statement and executes it as
+appropriate.
+
+A minor mode keymap is active whenever the minor mode variable (in
+this case, vr-mode) is non-nil.  When active, any keystrokes the user
+types are first checked against the minor mode keymap for matches and,
+if appropriate, the specified function is invoked.  The keymap
+vr-prefix-map defines only a single key sequence, C-c v, and maps it
+to the keymap vr-map, which then defines the various VR Mode commands
+the user can access (the key sequence is are broken into two keymaps
+in this way so they user can more easily change the VR Mode prefix key
+sequence in their .emacs file).
+
+VR Mode uses post-command-hook and minibuffer-setup-hook to determine
+when the selected buffer changes in to send commands to VR.EXE as
+appropriate.  It uses kill-buffer-hook to determine whenever a buffer
+is deleted.  It uses a single overlay in the current voice-activated
+buffer, stored in the variable vr-overlay, to track all changes to the
+buffer so as to notify VR.EXE of them with the change-text command.
+
+Details of Emacs/VR.EXE Communication
+----------------------------------------------------------------------
+
+One tricky aspect of the way that VR Mode operates is the use of the
+pipes between Emacs process object and VR.EXE's stdin/stdout with
+initiate commands and receive replies in either direction at any time.
+Because VR.EXE could receive, for example, an "exit" command at any
+time, it must be continually checking its stdin for data.  However,
+because VR.EXE can be asked by the IDgnDictCust object to issue a
+command to Emacs at any time, it must be able to send data to stdout
+and then read the reply from stdin.  
+
+This presents a few problems.  VR.EXE cannot both be continuously
+blocked reading from stdin and still receive callbacks from
+NaturallySpeaking object.  This can be resolved by using a new thread
+to read commands from stdin (on Unix, it could also be solved with
+select(), but there appears to be no equivalent for pipes on Windows).
+However, it would still not be possible to have that thread
+continuously reading from stdin and have a callback send a command to
+and read a reply from Emacs, because two threads cannot read from the
+same pipe at the same time safely.  The obvious solution is that only
+a single thread can be used to read from stdin, but then that thread
+needs a way to tell whether a line of data it receives is a reply to a
+previous command or a new command issued by the user.  Ideally, the
+code that issues user commands and the code that processes replies to
+commands should not need to know anything about the syntax of each
+other's data.
+
+The solution to this situation is class IO and the prefix letter
+associated with each line of data sent from Emacs to VR.EXE.  When
+constructed, class IO starts a new thread that is continuously blocked
+reading from stdin.  For each line of data read, it checks the prefix
+character and responds appropriately.  For commands (prefix "c"), it
+executes the command immediately.  For replies (prefixes "r" and "t")
+the stores the data in a queue.
+
+Notification sinks (DictSink or MicSink) use IO::send_cmd() to send a
+command to Emacs, which simply prints the command to stdout
+immediately.  To read a reply, notification sinks use IO::get_reply(),
+which retrieves the next reply data line from the queue.
+
+There is a potential synchronization problem with the strategy
+described in comments in the IO.cpp file.  A different, and perhaps
+better, solution would be to have Emacs and VR.EXE communicate over
+two separate channels, stdin/stdout and a separately created TCP
+stream (or perhaps two TCP streams).
