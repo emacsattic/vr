@@ -5,6 +5,8 @@
   See the file COPYING.txt for terms of use.
   */
 
+// $Id$
+
 #include <windows.h>
 #include <stdio.h>
 #include <stdarg.h>
