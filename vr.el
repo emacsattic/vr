@@ -205,6 +205,7 @@ along with all the commands on vr-default-voice-command-list.")
     ("yank again" . yank-pop)
     ;; requires a key binding for yank, repeat yank to work!
     ("repeat yank" . vr-repeat-yank)
+    ("set mark" . set-mark-command)
 
     ;; Searching
     ("I search forward" . isearch-forward)
