@@ -941,7 +941,6 @@ interactively, sets the current buffer as the target buffer."
 	    (if (and (not vr-resynchronize-buffer) (eq our-tick dns-tick))
 		(vr-send-reply "0 not modified")
 	      (vr-send-reply "1 modified")
-	      (vr-send-reply (format "%d" (buffer-modified-tick)))
 	      (setq vr-text (buffer-string))
 	      (vr-send-reply (length vr-text))
 	      (vr-send-reply vr-text))
@@ -959,6 +958,7 @@ interactively, sets the current buffer as the target buffer."
 	    (vr-send-reply (vr-pfe (point)))
 	    (vr-send-reply (vr-pfe (window-start)))
 	    (vr-send-reply (vr-pfe (window-end)))
+	    (vr-send-reply (format "%d" (buffer-modified-tick)))
 	    ))
 
       ;;
