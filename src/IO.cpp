@@ -299,12 +299,12 @@ int IO::flush_stream (int sock )
   FD_SET(sock, &rfs);
   tv.tv_sec = 0 ; tv.tv_usec = 0;
   int n,ntot=0;
-  while((n = select(0 /* ignored */, &rfs, NULL, NULL, &tv))>0) {
+  while((n = select(0 /* ignored */, &rfs, NULL, NULL, &tv))!=0) {
     char buf[100];
     n = recv(sock, buf, 100, 0);
-	if(n==0)
-		// end-of-file
-		break;
+    if(n<1)
+      // end-of-file
+      break;
     ntot+=n;
   }
   return ntot;
