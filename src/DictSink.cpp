@@ -2,24 +2,8 @@
   VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
 
   Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
-
-  This file is part of Emacs VR Mode.
-
-  Emacs VR Mode is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; either version 2 of the License, or (at
-  your option) any later version.
-
-  Emacs VR Mode is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with Emacs VR Mode; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
-  USA
-*/
+  See the file COPYING.txt for terms of use.
+  */
 
 #include <windows.h>
 #include <stdio.h>
@@ -118,18 +102,38 @@ STDMETHODIMP DictSink::RecognitionStarting()
 		      
     GET_REPLY_INT(modified, "is-modified");
 
+    hRes = m_pIDgnDictCustom->Lock(0);
+    ReturnIfFailed(hRes, 0, "IDgnDictCustom->Lock() failed, hRes = 0x%X");
+
     if (modified) {
+      // "modified" means that an unsynchronized change has occurred,
+      // so we reload the entire buffer contents 
+      
       GET_REPLY_INT(this->tick, "tick");
       GET_REPLY_INT(length, "text length");
       text = client->get_reply("text");
       if (! text) {
 	debug_lprintf(64, "timeout waiting for text\r\n");
 	return E_FAIL;
+       }
+    }
+    else {
+      // it's not "modified", so we are still in sync.  Then we just
+      // ask for the changes that may occur as a result of the
+      // get-buffer info call. 
+      int cnt;
+      char *c;
+      GET_REPLY_INT(cnt, "change count");
+      for (int i = 0; i < cnt; i++) {
+	c = client->get_reply("change");
+	if (! c) {
+	  debug_lprintf(64, "timeout waiting for change\r\n");
+	  m_pIDgnDictCustom->UnLock();
+	  return E_FAIL;
+	}
+	client->change_text(c+12); // discard leading "change-text " */
       }
     }
-
-    hRes = m_pIDgnDictCustom->Lock(0);
-    ReturnIfFailed(hRes, 0, "IDgnDictCustom->Lock() failed, hRes = 0x%X");
 
     if (modified) {
       hRes = m_pIDgnDictCustom->TextSet(text, 0, length);
@@ -156,6 +160,7 @@ STDMETHODIMP DictSink::RecognitionStarting()
     return S_OK; 
 }
 
+//the NaturallySpeaking callback used when dictation has changed the buffer
 STDMETHODIMP DictSink::MakeChanges(DWORD dwStart, DWORD dwNumChars,
 				   LPCTSTR pszText, DWORD dwSelStart,
 				   DWORD dwSelNumChars)
