@@ -8,6 +8,32 @@ VR Mode integrates the features of Dragon NaturallySpeaking with GNU
 Emacs.  You must already have and be familiar with NaturallySpeaking
 3.52 and GNU Emacs 19.34 (or newer versions) in order to use VR mode.
 
+RELEASE NOTES:  Release 006
+
+This release incorporates the changes Patrik made.  They are too many
+to enumerate, but highlights include:
+
+- works with NaturallySpeaking version 5, including eliminating the
+  c0000005 exception when VR.EXE terminates.
+
+- changes are being sent as keystrokes instead of characters.  This
+  means that modes that have nonstandard keyboard mappings, e.g. "=>''
+  in latex-mode, works as expected.
+
+- now supports continuous dictation commands through Hans vanDam's
+  abbrevs mechanism, without losing buffer sync.
+
+- does not lose sync when using font-lock-mode.
+
+- does not lose sync when trying to dictate into a read-only buffer.
+
+- "fixed" a bug which would cause fill-paragraph to end up in an
+  infinite loop.
+
+- added a command "resynchronize" to manually ask for a buffer
+  resynchronization if (heaven forbid!  :-) that should be needed.
+
+   
 RELEASE NOTES:  Release 005
 
 Release 005 was released under the GNU General Public License in
