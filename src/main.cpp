@@ -268,9 +268,11 @@ void do_disconnect(Client *client, HWND hDlg)
     clients = c->next;
   else
     p->next = c->next;
-  
-  delete c;
+
   ReleaseMutex (client_mutex);
+  
+  // we should be able to delete without having the mutex
+  delete c;
   
   SetWindowText(GetDlgItem(hDlg, IDC_STATE), io->get_state());
   SetWindowText(GetDlgItem(hDlg, IDC_HOST), "");
