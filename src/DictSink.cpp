@@ -116,26 +116,6 @@ STDMETHODIMP DictSink::RecognitionStarting()
 	debug_lprintf(64, "timeout waiting for text\r\n");
 	return E_FAIL;
        }
-    }
-    else {
-      // it's not "modified", so we are still in sync.  Then we just
-      // ask for the changes that may occur as a result of the
-      // get-buffer info call. 
-      int cnt;
-      char *c;
-      GET_REPLY_INT(cnt, "change count");
-      for (int i = 0; i < cnt; i++) {
-	c = client->get_reply("change");
-	if (! c) {
-	  debug_lprintf(64, "timeout waiting for change\r\n");
-	  m_pIDgnDictCustom->UnLock();
-	  return E_FAIL;
-	}
-	client->change_text(c+12); // discard leading "change-text " */
-      }
-    }
-
-    if (modified) {
       hRes = m_pIDgnDictCustom->TextSet(text, 0, length);
       ReturnIfFailed(hRes, 1, "IDgnDictCustom->TextSet() failed, hRes = 0x%X");
       
@@ -144,6 +124,21 @@ STDMETHODIMP DictSink::RecognitionStarting()
 	Dragon says it is safe to do so.
 	*/
       free(text);
+    }
+
+    // now ask for the changes that may have occured as a result of the
+    // get-buffer info call. 
+    int cnt;
+    char *c;
+    GET_REPLY_INT(cnt, "change count");
+    for (int i = 0; i < cnt; i++) {
+      c = client->get_reply("change");
+      if (! c) {
+	debug_lprintf(64, "timeout waiting for change\r\n");
+	m_pIDgnDictCustom->UnLock();
+	return E_FAIL;
+      }
+      client->change_text(c+12); // discard leading "change-text " */
     }
 
     hRes = m_pIDgnDictCustom->TextSelSet(sel_start, sel_end - sel_start);
