@@ -287,3 +287,22 @@ int IO::run()
   }
   return 1;
 }
+
+
+// Reads any characters waiting on the stream
+int IO::flush_stream (int sock )
+{
+  struct timeval tv;
+  fd_set rfs;
+
+  FD_ZERO(&rfs);
+  FD_SET(sock, &rfs);
+  tv.tv_sec = 0 ; tv.tv_usec = 0;
+  int n,ntot=0;
+  while((n = select(0 /* ignored */, &rfs, NULL, NULL, &tv))>0) {
+    char buf[100];
+    n = recv(sock, buf, 100, 0);
+    ntot+=n;
+  }
+  return ntot;
+}
