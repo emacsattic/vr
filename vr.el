@@ -6,6 +6,32 @@
 ;;
 ;; $Id$
 ;; $Log$
+;; Revision 1.9.2.4  2002/02/16 07:24:02  grifgrif
+;; Changed the get-buffer-info call so that selection and window position
+;; are sent AFTER buffer resynchronization and possible deletions due to
+;; invisible text.  That way, the positions will be "corrected" for the
+;; invisible text.
+;;
+;; Vr-point-shift is a list containing 3 numbers, the beginning of the
+;; deleted region, the position of point, and the end of the deleted
+;; region.  This is necessary so that we can shift positions before and
+;; after the invisible region correctly as well, something that is used
+;; if the utterance is a selection command.
+;;
+;; The position shifting is done in two functions vr-pfe and vr-pte (for
+;; point-from-Emacs and point-to-Emacs, respectively).  It also takes
+;; care of the "difference of 1" in the indexing between Lisp and C++.
+;; This new functions are used in get-buffer-info, make-changes and
+;; change-text, the three functions that can be called while the
+;; invisible text is invisible.  It should probably be used in all cases,
+;; since it's also a little more transparent than using 1+ and 1-...
+;;
+;; Text insertion into the invisible regions now seems to work correctly,
+;; with the restoration of the invisible text and the positioning of the
+;; cursor doing the right thing.  There seems to be a problem with the
+;; invisible text being overly "contagious", but that's likely me not
+;; setting the non-stickiness of vr-invisible properly.
+;;
 ;; Revision 1.9.2.3  2001/12/17 11:01:36  grifgrif
 ;; vr-zap-invisible and vr-restore-invisible now seem to work.  There
 ;; were some issues with character positions and property searches
@@ -522,6 +548,9 @@ loop without screwing up the I/O.")
   "If non-nil, vr-zap-invisible has marked text \"removed\", and this
 needs to be found and restored in vr-restore-invisible.")
 
+(defvar vr-point-shift nil
+  "Info for translating buffer positions between emacs and vr.exe if there is invisible text around.")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Key bindings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -774,7 +803,7 @@ interactively, sets the current buffer as the target buffer."
 ;		  (buffer-substring beg end))
 	  (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
 			     (buffer-name (overlay-buffer overlay))
-			     (1- beg) (1- end) len
+			     (vr-pfe beg) (vr-pfe end) len
 			     (buffer-modified-tick)
 			     (vr-string-replace (buffer-substring beg end)
 						"\n" "\\n"))))
@@ -1024,10 +1053,6 @@ interactively, sets the current buffer as the target buffer."
 	    (set-buffer (get-buffer buffer))
 	    (vr-log "buffer synchronization problem: using %s\n" 
 		    (buffer-name (current-buffer)))
-	    (vr-send-reply (1- (point)))
-	    (vr-send-reply (1- (point)))
-	    (vr-send-reply (1- (window-start)))
-	    (vr-send-reply (1- (window-end)))
 	    (if (and (not vr-resynchronize-buffer) (eq our-tick dns-tick))
 		(vr-send-reply "0 not modified")
 	      (vr-send-reply "1 modified")
@@ -1042,6 +1067,13 @@ interactively, sets the current buffer as the target buffer."
 	    ;; (vr-zap-invisible) 
 	    (vr-send-reply (length vr-queued-changes))
 	    (mapcar 'vr-send-reply vr-queued-changes)
+
+	    ;;  these need to be sent after the changes, because
+	    ;;  invisible text will change the point values
+	    (vr-send-reply (vr-pfe (point)))
+	    (vr-send-reply (vr-pfe (point)))
+	    (vr-send-reply (vr-pfe (window-start)))
+	    (vr-send-reply (vr-pfe (window-end)))
 	    ))
 
       ;;
@@ -1057,20 +1089,6 @@ interactively, sets the current buffer as the target buffer."
 			  (overlay-end mdo)
 			  sel-buffer)))
 
-      ;;
-      ;; Send selection (or point) and viewable window.
-      ;;
-      (let ((sel-buffer (overlay-buffer vr-select-overlay)))
-	(if (eq sel-buffer vr-buffer)
-	    (progn
-	      (vr-send-reply (1- (overlay-start vr-select-overlay)))
-	      (vr-send-reply (1- (overlay-end vr-select-overlay)))
-	      )
-	  (vr-send-reply (1- (point)))
-	  (vr-send-reply (1- (point)))
-	  ))
-      (vr-send-reply (1- (window-start)))
-      (vr-send-reply (1- (window-end)))
       ;;
       ;; Then, send buffer contents, if modified.
       ;;
@@ -1094,16 +1112,31 @@ interactively, sets the current buffer as the target buffer."
       (vr-send-reply (length vr-queued-changes))
       (mapcar 'vr-send-reply vr-queued-changes)))
 
+      ;; Send selection (or point) and viewable window.
+      ;;
+      (let ((sel-buffer (overlay-buffer vr-select-overlay)))
+	(if (eq sel-buffer vr-buffer)
+	    (progn
+	      (vr-send-reply (vr-pfe (overlay-start vr-select-overlay)))
+	      (vr-send-reply (vr-pfe (overlay-end vr-select-overlay)))
+	      )
+	  (vr-send-reply (vr-pfe (point)))
+	  (vr-send-reply (vr-pfe (point)))
+	  ))
+      (vr-send-reply (vr-pfe (window-start)))
+      (vr-send-reply (vr-pfe (window-end)))
+
 ;(sleep-for 0 100)
 ;  (yank)
   t)
 
+;; perform changes requested by NaturallySpeaking
 (defun vr-cmd-make-changes (vr-request)
   (if (eq (current-buffer) vr-buffer)
-      (let ((start (1+ (nth 1 vr-request)))
+      (let ((start (vr-pte (nth 1 vr-request)))
 	    (num-chars (nth 2 vr-request))
 	    (text (nth 3 vr-request))
-	    (sel-start (1+ (nth 4 vr-request)))
+	    (sel-start (vr-pte (nth 4 vr-request)))
 	    (sel-chars (nth 5 vr-request))
 	    vr-queued-changes)
 	(if (and buffer-read-only (or (< 0 num-chars) (< 0 (length text))))
@@ -1114,8 +1147,8 @@ interactively, sets the current buffer as the target buffer."
 	      (vr-log "make changes:Buffer is read-only %d %d\n"
 		      num-chars (length text))
 	      (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
-				 (buffer-name) (1- start)
-				 (+ (1- start) num-chars) (length text)
+				 (buffer-name) (vr-pfe start)
+				 (+ (vr-pfe start) num-chars) (length text)
 				 (buffer-modified-tick)
 				 (vr-string-replace (buffer-substring start
 								      (+ start num-chars))
@@ -1151,7 +1184,8 @@ interactively, sets the current buffer as the target buffer."
 		  ;; send back a "delete command", since when
 		  ;; command is executed it will send the insertion.
 		  (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
-				     (buffer-name) (1- (point)) (point)
+				     (buffer-name) (vr-pfe (point))
+				     (1+ (vr-pfe (point)))
 				     1 (buffer-modified-tick) ""))
 			(vr-ignore-changes 'command-insert ))
 		    (setq vr-queued-changes (cons cmd
@@ -1167,6 +1201,7 @@ interactively, sets the current buffer as the target buffer."
 		    ))
 		(run-hooks 'post-command-hook)
 		))); ends self-insert region
+
 	  ;; whether or not we should put point where
 	  ;; NaturallySpeaking wants is not so easy to decide.  If
 	  ;; point is not there, dictation won't work correctly if
@@ -1187,8 +1222,16 @@ interactively, sets the current buffer as the target buffer."
 	    ;; bound to multiple characters, and surprisingly enough
 	    ;; even if deferred functions have moved point completely!
 	    (vr-log "make changes: positioning point relative\n")
+
+	    ;; tricky with invisible text: if we're inserting
+	    ;; characters, sel-start is really *relative*to point, and
+	    ;; should be shifted as point. Actually, we don't need to
+	    ;; shifted at all, since it's just start - sel-start
+	    ;; that matters.
 	    (goto-char (+ (point)
-			  (- sel-start (+ start (length text)))))
+			  ;(- sel-start (+ start (length text)))))
+			  (- (nth 4 vr-request) 
+			     (nth 1 vr-request) (length text))))
 	    )
 	  (delete-overlay mouse-drag-overlay)
 	  (if (equal sel-chars 0)
@@ -1238,12 +1281,16 @@ interactively, sets the current buffer as the target buffer."
 	    invisible-string (current-position (point)) )
 	(if before-invisible
 	    (setq start-invisible
-		  (previous-single-property-change (- (point) 1)
-						   'vr-invisible)))
+		  (or
+		   (previous-single-property-change (- (point) 1)
+						    'vr-invisible)
+		   (point-min))))
 	(if after-invisible
 	    (setq end-invisible
-		  (next-single-property-change (point)
-					       'vr-invisible)))
+		  (or
+		   (next-single-property-change (point)
+						'vr-invisible)
+		   (point-max))))
 
 	;; the sub string between start-invisible and end-invisible is
 	;; what should be hidden from NaturallySpeaking, and have its
@@ -1267,11 +1314,45 @@ interactively, sets the current buffer as the target buffer."
 	;; text
 	(setq vr-floating-invisible t)
 	;; Emacs and NaturallySpeaking will now disagree on point
-	;; values, set the displacement.
-	(setq vr-point-shift (- current-position start-invisible)) 
+	;; values, save the displacement info.
+	(setq vr-point-shift (list start-invisible current-position
+				   end-invisible)) 
 	(goto-char current-position)
 	(vr-log "leaving zap-invisible: point is %d\n" (point))
 	))))
+
+;;  calculates the appropriate Emacs buffer position from a vr.exe
+;;  position, if we have invisible text flying around.
+(defun vr-pte (position)
+  (setq position (1+ position))
+  (if vr-point-shift
+      (let ((start (car vr-point-shift)))
+	(setq position 
+	      (cond ((eq position start)
+		     (nth 1 vr-point-shift))
+		    ((> position start ) 
+		     (+ position (- (nth 2 vr-point-shift)
+				    start)))
+		    (t
+		     position)))))
+  position
+)
+
+;;  calculates the appropriate vr.exe buffer position from an Emacs
+;;  position, if we have invisible text flying around.
+(defun vr-pfe (position)
+  (progn
+    (if vr-point-shift
+	(let ((start (car vr-point-shift)) 
+	      (end (nth 2 vr-point-shift))) 
+	      (setq position 
+		    (cond ((> position end) 
+			   (- position (- end start)))
+			  ((> position start)
+			   start)
+			  (t
+			   position)))))
+    (1- position)))
 
 
 ;; This function restores (whatever is left, nothing if it was an else
@@ -1282,6 +1363,9 @@ interactively, sets the current buffer as the target buffer."
       (progn
 	(vr-log "entering restore-invisible: point is %d\n" (point))
 	;; there is text out there, and we have to find it...
+	;; reset the point-shift because it won't be necessary for the
+	;; reinsertion of the invisible parts... I hope... ;-|
+	(setq vr-point-shift nil)
 	(let ((start (point-min)) (current-position (point)))
 	  (while (setq start
 		       (text-property-any start (point-max)
@@ -1310,7 +1394,6 @@ interactively, sets the current buffer as the target buffer."
 	  (goto-char current-position))
 	;; reset these 
 	(setq vr-floating-invisible nil)
-	(setq vr-point-shift 0)
 	(vr-log "leaving restore-invisible: point is %d\n" (point))
 )))
 
