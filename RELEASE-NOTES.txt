@@ -10,6 +10,9 @@ Emacs.  You must already have and be familiar with NaturallySpeaking
 
 RELEASE NOTES:  Release 005
 
+Release 005 was released under the GNU General Public License in
+November 2001.
+
 This release fixes the known bugs in V005 beta 1.
 Changes include:
 
