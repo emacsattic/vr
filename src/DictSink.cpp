@@ -104,7 +104,6 @@ STDMETHODIMP DictSink::RecognitionStarting()
       // "modified" means that an unsynchronized change has occurred,
       // so we reload the entire buffer contents 
       
-      GET_REPLY_INT(this->tick, "tick");
       GET_REPLY_INT(length, "text length");
       text = client->get_reply("text");
       if (! text) {
@@ -140,6 +139,8 @@ STDMETHODIMP DictSink::RecognitionStarting()
     GET_REPLY_INT(sel_end, "selection end");
     GET_REPLY_INT(window_start, "window start");
     GET_REPLY_INT(window_end, "window end");
+    //Most recent buffer tick
+    GET_REPLY_INT(this->tick, "tick");
 		      
     hRes = m_pIDgnDictCustom->TextSelSet(sel_start, sel_end - sel_start);
     ReturnIfFailed(hRes,1, "IDgnDictCustom->TextSelSet() failed, hRes = 0x%X");
