@@ -397,7 +397,44 @@ reply when done.")
   '(exit-minibuffer minibuffer-complete-and-exit)
   "These commands never exit and can't be executed in the make-changes
 loop without screwing up the I/O.") 
-  
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Fixes for miscellaneous interaction issues
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; for some reason activating a buffer in VR mode sometimes makes this
+;; function fail to substitute every character in the region, which in
+;; turn makes fill-paragraph end up in an infinite loop.  The "fix"
+;; for this is to search the region after the command has completed,
+;; and rerun it if it didn't work correctly.  It would be better to
+;; figure out why it happens in the first place, but I have no idea.
+(defadvice subst-char-in-region (after fix-mysterious-substitution-bug activate
+				       compile )
+  "make sure that the substitution worked"
+  (save-excursion
+    (save-restriction
+      (narrow-to-region start end)
+      (goto-char start)
+      (if (search-forward (char-to-string fromchar) nil t)
+	  ;; failed, retry
+	  (progn
+	    (message "advice redoing substitution")
+	    (subst-char-in-region start end fromchar tochar noundo))
+	))))
+
+;; when else-mode expands a placeholder, the buffer frequently gets
+;; out of sync.  We advise the piece of function that does this, and
+;; ask for a manual resynchronization.
+(defadvice else-replicate-placeholder-string (after
+					      resynchronize-it
+					      activate compile)
+  "make VR mode resynchronize the buffer after a placeholder has been
+expanded, since they often make it go out of sync."
+
+  (message "Resynchronizing VR-buffer")
+  (call-interactively 'vr-resynchronize)
+  )
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Key bindings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -495,19 +532,6 @@ sync.  (That shouldn't happen, in an ideal world, but..."
   (interactive (list (current-buffer)))
   (set-buffer buffer)
   (setq vr-resynchronize-buffer t))
-
-;; when else-mode expands a placeholder, the buffer frequently gets
-;; out of sync.  We advise the piece of function that does this, and
-;; ask for a manual resynchronization.
-(defadvice else-replicate-placeholder-string (after
-					      resynchronize-it
-					      activate compile)
-  "make VR mode resynchronize the buffer after a placeholder has been
-expanded, since they often make it go out of sync."
-
-  (message "resynchronizing VR-buffer")
-  (call-interactively 'vr-resynchronize)
-  )
 
 (defun vr-activate-buffer-p (buffer)
   "Predicate indicating whether BUFFER matches any REGEXP element and
