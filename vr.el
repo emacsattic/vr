@@ -6,6 +6,13 @@
 ;;
 ;; $Id$
 ;; $Log$
+;; Revision 1.4  2001/09/01 10:56:47  patrik
+;; Changed the command processing so that all commands except those
+;; specified as vectors of keystrokes are executed directly.  The
+;; advantage of doing this is that commands executed as keystrokes change
+;; the active buffer to the minibuffer, so the changes to the buffer were
+;; not communicated properly.  This was the case for yank, for example.
+;;
 ;; Revision 1.3  2001/09/01 08:46:53  patrik
 ;; Fixed several problems with the abbreviation mode and ELSE.  The
 ;; routine handle-abbrev-expansion used to reinsert the placeholder text
@@ -830,11 +837,13 @@ interactively, sets the current buffer as the target buffer."
     (if (not vr-cmd-executing)
 	(vr-send-cmd "command-done undefined"))
     
-    (if (> (length vr-request) 2)
+    (if (not (vectorp cmd))
 	(progn
 	  (run-hooks 'pre-command-hook)
 	  (condition-case err
-	      (apply cmd (nthcdr 2 vr-request))
+	      (if (> (length vr-request) 2)
+		  (apply cmd (nthcdr 2 vr-request))
+		(call-interactively cmd))
 	    ('wrong-number-of-arguments
 	     (ding)
 	     (message
@@ -848,10 +857,12 @@ interactively, sets the current buffer as the target buffer."
 	  (vr-log "running post-command-hook for %s\n" cmd)
  	  (let ((this-command vr-cmd-executing))
 	    (run-hooks 'post-command-hook)))
-      (vr-log "running %s as key sequence\n" cmd)
+      (vr-log "running %s as key sequence:\n" cmd )
       (setq unread-command-events
 	    (append unread-command-events
-		    (listify-key-sequence kseq)))))
+		    (listify-key-sequence kseq)))
+      ) 
+	)
   t)
 
 (defun vr-cmd-mic-state (vr-request)
