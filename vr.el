@@ -66,14 +66,17 @@ minibuffer is controlled by vr-activate-minibuffer.")
 (defvar vr-voice-command-list '(vr-default-voice-commands)
   "*The list of Emacs interactive commands that can be invoked by
 voice.  Each element can be a command, a CONS cell containing
-spoken text and a command or key sequence, or the special symbol
+spoken text and a command or key sequence, the name of a list
+containing any of these (recursive option), or the special symbol
 'vr-default-voice-commands, which implicitly includes the voice
 commands in vr-default-voice-command-list (which see).
 
 For example:
 
+(setq test-commands '(test-command-one test-command-two))
 (setq vr-voice-command-list
       '(vr-default-voice-commands
+	test-commands
 	my-command
 	(\"other command\" . my-other-command)
 	(\"prefix shell command\" . [\?\\C-u \?\\M-\\S-!])))
@@ -82,6 +85,8 @@ sets up the voice commands
 
 	Spoken			Invokes
 	===============		=============
+	test command one       	M-x test-command-one
+	test command two      	M-x test-command-two
 	my command		M-x my-command
 	other command		M-x my-other-command
 	prefix shell command	C-u M-S-! (i.e. C-u M-x shell-command)
@@ -601,9 +606,9 @@ interactively, sets the current buffer as the target buffer."
 	(setq vr-mode-line (concat " VR:" vr-mic-state))
 	(if (and enable-multibyte-characters  
 		 (multibyte-string-p (buffer-string)))
-	    ;; buffer contains multibyte characters -- display a
-	    ;; warning
-	    (message "Warning: Buffer contains multibyte characters, VR Mode may malfuction"))
+	    ;; buffer contains multibyte characters -- log a
+	    ;; warning (though I think it's fixed now)
+	    (vr-log "Warning: Buffer contains multibyte characters, VR Mode may malfuction\n"))
 	(vr-send-cmd (concat "activate-buffer " (buffer-name vr-buffer)))
 	(if vr-overlay
 	    nil
@@ -1589,32 +1594,36 @@ off -> on, {on,sleeping} -> off."
 (defun vr-startup ()
   "Initialize any per-execution state of the VR Mode subprocess."
   (let ((l (lambda (x)
-	     (cond ((eq x 'vr-default-voice-commands)
-		    (mapcar l vr-default-voice-command-list))
-		   ((symbolp x)
-		    (vr-send-cmd
-		     (concat "define-command "
-			     (vr-strip-dash x) "|" (symbol-name x))))
-		   ((and (listp x) (eq (car x) 'list))
-		    (vr-send-cmd
-		     (format "define-list %s|%s" (nth 1 x) (nth 2 x))))
-		   ((and (consp x) (vectorp (cdr x)))
-		    (vr-send-cmd
-		     (format "define-command %s|%s" (car x) (cdr x))))
-		   ((and (consp x) (symbolp (cdr x)))
-		    (vr-send-cmd
-		     (format "define-command %s|%s" (car x) (cdr x))))
-		   ((and (consp x) (stringp (cdr x)))
-		    (vr-send-cmd
-		     (format "define-command %s|%s" (car x) (cdr x))))
-		   (t
-		    (error "Unknown vr-voice-command-list element %s"
-			   x))
-		   )
-	     )))
+             (cond ((eq x 'vr-default-voice-commands)
+                    (mapcar l vr-default-voice-command-list))
+		   ;; evaluate a list of commands if the name of the
+		   ;; list is specified
+                   ((condition-case e (listp (symbol-value x)) ('error nil))
+                    (mapcar l (symbol-value x)))
+                   ((symbolp x)
+                    (vr-send-cmd
+                     (concat "define-command "
+                             (vr-strip-dash x) "|" (symbol-name x))))
+                   ((and (listp x) (eq (car x) 'list))
+                    (vr-send-cmd
+                     (format "define-list %s|%s" (nth 1 x) (nth 2 x))))
+                   ((and (consp x) (vectorp (cdr x)))
+                    (vr-send-cmd
+                     (format "define-command %s|%s" (car x) (cdr x))))
+                   ((and (consp x) (symbolp (cdr x)))
+                    (vr-send-cmd
+                     (format "define-command %s|%s" (car x) (cdr x))))
+                   ((and (consp x) (stringp (cdr x)))
+                    (vr-send-cmd
+                     (format "define-command %s|%s" (car x) (cdr x))))
+                   (t
+                    (error "Unknown vr-voice-command-list element %s"
+                           x))
+                   )
+             )))
     (mapcar l (if (eq vr-voice-command-list t)
-		  vr-default-voice-command-list
-		vr-voice-command-list)))
+                  vr-default-voice-command-list
+                vr-voice-command-list)))
   ;; don't set up these hooks until after initialization has succeeded
   (add-hook 'post-command-hook 'vr-post-command)
   (add-hook 'minibuffer-setup-hook 'vr-enter-minibuffer)
