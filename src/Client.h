@@ -75,5 +75,6 @@ public:
 };
 
 extern Client *clients;
+extern HANDLE client_mutex;
 
 #endif /* __CLIENT_H__ */
