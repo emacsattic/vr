@@ -644,15 +644,22 @@ interactively, sets the current buffer as the target buffer."
 		   nil)
 ;	  (vr-log " After: %s %d %d %d: \"%s\"\n" overlay beg end len
 ;		  (buffer-substring beg end))
-	  (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
-			     (buffer-name (overlay-buffer overlay))
-			     (vr-pfe beg) (vr-pfe end) len
-			     (buffer-modified-tick)
-			     (vr-string-replace (buffer-substring beg end)
-						"\n" "\\n"))))
-	    (if vr-ignore-changes
-		(setq vr-queued-changes (cons cmd vr-queued-changes))
-	      (vr-send-cmd cmd)))))
+	  (if vr-floating-invisible
+	      ;; there is invisible text floating around, we have to
+	      ;; make sure we don't send a delete command for it,
+	      ;; since NaturallySpeaking already thinks it's been
+	      ;; deleted.  This is a pain because there could be small
+	      ;; invisible chunks, not necessarily the entire change.
+	      (vr-only-visible-chunks overlay beg end len)
+	    (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
+			       (buffer-name (overlay-buffer overlay))
+			       (vr-pfe beg) (vr-pfe end) len
+			       (buffer-modified-tick)
+			       (vr-string-replace (buffer-substring beg end)
+						  "\n" "\\n"))))
+	      (if vr-ignore-changes
+		  (setq vr-queued-changes (cons cmd vr-queued-changes))
+		(vr-send-cmd cmd))))))
     (vr-log " overlay modified: a:%s vro:%s %d %d : \"%s\"\n"
 	    after (eq vr-overlay overlay) beg end 
 	    (buffer-substring beg end))
@@ -681,6 +688,41 @@ interactively, sets the current buffer as the target buffer."
     ))
   t  )
 
+(defun vr-only-visible-chunks (overlay beg end len)
+  ;; we're fucked here because we don't know the text that was deleted
+  (let ((vr-floating-invisible nil)
+	(text (car vr-modification-stack))
+	(new-length ))
+    (if (and (> len 0) (eq beg end))
+	;; it's a deletion
+	;; see if we can find the deleted string on the modification
+	;; stack
+	(progn
+	  (vr-log "visible chunks: looking for deleted string\n")
+	  (if (eq len (length text))
+	      (progn
+		(vr-log "  think I found it: %s\n" text)
+		;; now our task is to only send the visible portion of
+		;; this deletion, which amounts to finding out the
+		;; number of invisible characters in the deleted
+		;; string.
+		(setq new-length (- len (vr-count-invisible text))) 
+		(vr-log "  %d visible characters in string\n" new-length) 
+		(vr-report-change overlay t beg end
+				  new-length)))))))
+
+
+(defun vr-count-invisible (text)
+  (let ((position 0) (count 0))
+    (while (setq position (text-property-any position (length text)
+					     'vr-invisible
+					     'invisible text))
+      (let ((end (next-single-property-change position 'vr-invisible
+					      text (length text))))
+	(setq count (+ count (- end position)))))
+    count))
+    
+    
 (defun vr-string-replace (src regexp repl)
   (let ((i 0))
     (while (setq i (string-match regexp src))
@@ -942,7 +984,7 @@ interactively, sets the current buffer as the target buffer."
 	(if vr-resynchronize-buffer
 	    (vr-log "buffer resynchronization requested \n"))
 	(vr-send-reply "1 modified")
-	(vr-send-reply (format "%d" (buffer-modified-tick)))
+	; (vr-send-reply (format "%d" (buffer-modified-tick)))
 	(setq vr-text (buffer-string))
 	(vr-send-reply (length vr-text))
 	(vr-send-reply vr-text)
@@ -968,7 +1010,9 @@ interactively, sets the current buffer as the target buffer."
 	  ))
       (vr-send-reply (vr-pfe (window-start)))
       (vr-send-reply (vr-pfe (window-end)))
-
+      ;; and the current buffer tick
+      (vr-send-reply (format "%d" (buffer-modified-tick)))
+      
 ;(sleep-for 0 100)
 ;  (yank)
   t)
@@ -1178,7 +1222,8 @@ interactively, sets the current buffer as the target buffer."
 			       (vr-pfe start-invisible)
 			       (vr-pfe end-invisible)
 			       0 ;; it's a deletion 
-			       0 ;; tick is meaningless
+			       (buffer-modified-tick)
+			       ;; tick is meaningless -- no it's not
 			       "")))
 	      (if vr-ignore-changes
 		  (setq vr-queued-changes (cons cmd vr-queued-changes))
@@ -1261,7 +1306,7 @@ interactively, sets the current buffer as the target buffer."
 	      ;; and should have that property changed and be
 	      ;; unveiled to NaturallySpeaking.
 	      (let ((vr-ignore-changes 'unconditionally))
-		(put-text-property start end 'vr-invisible t))
+		(put-text-property start end 'vr-invisible nil))
 
 	      (setq invisible-string (buffer-substring start end))
 
@@ -1270,7 +1315,7 @@ interactively, sets the current buffer as the target buffer."
 				 (vr-pfe start)
 				 (vr-pfe start)
 				 (length invisible-string) 
-				 0 ;; tick is meaningless
+				 (buffer-modified-tick)
 				 (vr-string-replace invisible-string
 						    "\n" "\\n"))))
 		(if vr-ignore-changes
