@@ -8,6 +8,30 @@ VR Mode integrates the features of Dragon NaturallySpeaking with GNU
 Emacs.  You must already have and be familiar with NaturallySpeaking
 3.52 and GNU Emacs 19.34 (or newer versions) in order to use VR mode.
 
+RELEASE NOTES: Release 007 (My name is Mode, VR Mode...) beta
+
+This release contains a fix for a bug that could cause vr.exe to crash
+when remotely connected clients disconnected.  Please report any
+crashes that happen when killing Emacs, killing buffers or exiting VR
+Mode.
+
+Another change is a different behavior when exiting VR Mode in an
+Emacs that was used to spawn vr.exe.  Before, it would unconditionally
+terminate vr.exe, now vr.exe will hang around until all remote
+instances of Emacs have disconnected.  If you re-enter VR Mode from
+the local Emacs, it will attempt to reconnect to vr.exe if it's still
+running.  If that fails, it will spawn a new vr.exe just like before.
+
+This version also uses a new communication protocol, which can send
+changes both before and after the utterance.  The purpose of this was
+to make VR Mode more compatible with Peter Milliken's else-mode, so if
+you don't use else-mode you can forget about it, except for the fact
+that you will have to update vr.el on all machines you use.
+(Currently you can forget about it even if you do, because it's not
+functional.  It's not clear to me yet whether it will actually be
+useful are not.)
+
+
 RELEASE NOTES:  Release 006
 
 This release incorporates the changes Patrik made.  They are too many
