@@ -2,96 +2,23 @@
 ;; VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
 ;;
 ;; Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
-;; See the file COPYING.txt for terms of use.
 ;;
-;; $Id$
-;; $Log$
-;; Revision 1.8  2001/11/08 08:23:57  patrik
-;; Fixed a little bug concerning the positioning of point in
-;; make-changes.  Before we would only reposition it manually if the user
-;; made a selection or repositioning of point.  This messed up the
-;; behavior of NaturallySpeaking when point was already at the beginning
-;; of a word.  In this case, NaturallySpeaking will insert a space, but
-;; wants point to be at the end of the first word, not that the beginning
-;; of the second which is where it will be after just running the self
-;; insertion.  Solved this by making a "relative" repositioning, meaning
-;; that point is put where NaturallySpeaking wanted it to be relative to
-;; the end of the insertion string.  This solves the spacing behavior
-;; above (which also would make NaturallySpeaking refuse to scratch,
-;; since point had been moved), and even works with the deferred-function
-;; movement commands, since it is relative to where point ends up being.
+;; This file is part of Emacs VR Mode.
 ;;
-;; Revision 1.7  2001/11/08 07:03:08  patrik
-;; When quitting a remote Emacs, it would sometimes close the window
-;; before VR.EXE had had time to process the shutdown, so I added a delay
-;; in the kill-Emacs hook, after turning VR mode off.  Seems to work.
+;; Emacs VR Mode is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation; either version 2 of the License, or (at
+;; your option) any later version.
 ;;
-;; Revision 1.6  2001/09/25 01:44:38  patrik
-;; Worked around the exit-minibuffer lockup by checking if the command
-;; about to be executed is one of the commands that never exits.  If so,
-;; it uses the deferred-function mechanism instead.  The commands for
-;; which this is done are kept in the variable vr-nonlocal-exit-commands.
+;; Emacs VR Mode is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; General Public License for more details.
 ;;
-;; It seems to work well.  You cannot, of course, continue dictating
-;; after the New-Line in the minibuffer, but then doing so seems a little
-;; excessive as well...
-;;
-;; Revision 1.5  2001/09/10 23:35:10  patrik
-;; Smoothed out a number of rough edges concerning the continuous
-;; commands.  Most of the changes are in pbvElse, but there were a number
-;; of problems with the deferred-function variables not being cleared
-;; properly.  It still seems that sometimes expand-placeholder, which
-;; should be executed in make-changes, does not get run.  Instead, it
-;; will be run the next time you enter make-changes.  I have no idea why
-;; this happens.
-;;
-;; Also fixed some problems with the execute-function function, stupid
-;; Lisp stuff like whether the command sequence is a list or a vector,
-;; and so on.
-;;
-;; Also added the running of pre-command-hook and post-command-hook for
-;; our "simulated" keyboard input.  I hope that this would have cured the
-;; fact that macro definitions don't recognize the VR mode keystrokes,
-;; but it didn't.  I don't know how macros read keystrokes when they're
-;; being defined.
-;;
-;; Revision 1.4  2001/09/01 10:56:47  patrik
-;; Changed the command processing so that all commands except those
-;; specified as vectors of keystrokes are executed directly.  The
-;; advantage of doing this is that commands executed as keystrokes change
-;; the active buffer to the minibuffer, so the changes to the buffer were
-;; not communicated properly.  This was the case for yank, for example.
-;;
-;; Revision 1.3  2001/09/01 08:46:53  patrik
-;; Fixed several problems with the abbreviation mode and ELSE.  The
-;; routine handle-abbrev-expansion used to reinsert the placeholder text
-;; that ELSE would remove when you type into the placeholder.  It would
-;; then also run the commands and avoid the expansion by an on purpose
-;; error.  This messed up VR mode since the error would stop processing
-;; of the changes.  Made a very similar routine called
-;; fix-else-abbrev-expansion, which would reinsert the placeholder text
-;; but not call the command.  It's now called just before the command is
-;; executed in vr-report-change.
-;;
-;; Also made a temporary fix for the fact that expand-placeholder is not
-;; a command that returns quickly, but requires user input.  Since it is
-;; called before make-changes sends tick and change counts, vr.exe would
-;; timeout.  The fix checks if the command it is about to execute is
-;; expand-placeholder, and if it is report-changes simply doesn't do
-;; anything.  Instead, make-changes, after sending tick and change
-;; counts, checks if deferred-deferred-function is set, and in that case
-;; executes the command.  Of course this doesn't work if
-;; expand-placeholder is not the last command in the utterance, but on
-;; the other hand that doesn't make sense, because expand-placeholder
-;; requires input, so it should be the last.
-;;
-;; It still isn't perfect, because ELSE uses before-change-functions to
-;; delete the placeholder, which means that VR mode will get out of
-;; sync.  I can't think of a simple way of taking care of this, when the
-;; Emacs buffer changes before any characters have been entered, and
-;; vr.exe thinks that all the characters have already been typed, it's
-;; not straightforward to sort that out.
-;;
+;; You should have received a copy of the GNU General Public License
+;; along with Emacs VR Mode; if not, write to the Free Software
+;; Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+;; USA
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; User options
@@ -199,7 +126,6 @@ along with all the commands on vr-default-voice-command-list.")
     kill-buffer
     switch-to-buffer-other-window
     switch-to-buffer-other-frame
-    ("resynchronize" .  vr-resynchronize)
     
     ;; windows
     ("split window" . split-window-vertically)
@@ -210,22 +136,18 @@ along with all the commands on vr-default-voice-command-list.")
     ;; frames
     
     ;; cursor movement
-    ("forward char <0to20>" . forward-char) 
-    ("backward char <0to20>" . backward-char )
-    ("forward word <0to20>" . forward-word)
-    ("backward word <0to20>" . backward-word)
-    ("next line <0to20>" . next-line)
-    ("previous line <0to20>" . previous-line)
-    ("forward paragraph <0to20>" . forward-paragraph)
-    ("backward paragraph <0to20>" . backward-paragraph)
-    ("scroll up" . scroll-up)
-    ("scroll down" . scroll-down)
+    next-line
+    previous-line
+    beginning-of-line
+    end-of-line
+    beginning-of-buffer
+    end-of-buffer
+    forward-paragraph
+    backward-paragraph
+    scroll-up
+    scroll-down
     ("page down" . scroll-up)
     ("page up" . scroll-down)
-    ("beginning of line" . beginning-of-line)
-    ("end of line" . end-of-line)
-    ("beginning of buffer" . beginning-of-buffer)
-    ("end of buffer" . end-of-buffer)
 
     ("move up" . vr-repeat-move-up-s)
     ("move up slow" . vr-repeat-move-up-s)
@@ -260,10 +182,7 @@ along with all the commands on vr-default-voice-command-list.")
     ("forward <0to20> paragraphs" . forward-paragraph)
 
     ;; deleting text
-    ("delete char <0to20>" . delete-char)
-    ("kill word <0to20>" . kill-word)
-    ("backward kill word <0to20>" . backward-kill-word)
-    ("kill line <0to20>" . kill-line)
+    kill-line
     ("repeat kill line" . "vr-repeat-kill-line 0.5")
     yank
     yank-pop
@@ -283,15 +202,11 @@ along with all the commands on vr-default-voice-command-list.")
     
     ;; modes
     auto-fill-mode
-    exit-minibuffer
     )
   "*A list of standard Emacs voice commands.  This list is used as-is
 whenever vr-voice-command-list (which see) includes the symbol
 'vr-default-voice-commands, or it can be appended explicitly in a
 custom vr-voice-command-list.")
-
-(defvar vr-log-do nil "*If non-nil, VR mode prints debugging information
-in the \" *vr*\" buffer.")
 
 (defvar vr-log-send nil "*If non-nil, VR mode logs all data sent to the VR
 subprocess in the \" *vr*\" buffer.")
@@ -456,16 +371,6 @@ See vr-activate-buffer and vr-switch-to-buffer.")
 currently being executed by VR Mode, for which VR.EXE is expecting a
 reply when done.")
 
-(defvar vr-resynchronize-buffer nil)
-(make-variable-buffer-local 'vr-resynchronize-buffer)
-
-(defvar vr-deferred-deferred-function nil)
-(defvar vr-deferred-deferred-deferred-function nil)
-(defvar vr-nonlocal-exit-commands
-  '(exit-minibuffer minibuffer-complete-and-exit)
-  "These commands never exit and can't be executed in the make-changes
-loop without screwing up the I/O.") 
-  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Key bindings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -505,15 +410,11 @@ loop without screwing up the I/O.")
   (add-hook 'post-command-hook 'vr-post-command)
   (if (overlayp vr-select-overlay)
       (delete-overlay vr-select-overlay))
-  (vr-log "post-command: %s %s %s\n" this-command
-	  vr-cmd-executing (buffer-name))
   (if vr-emacs-cmds
       (progn
+	;;(vr-log "post-command: %s %s\n" this-command vr-cmd-executing)
 	(vr-maybe-activate-buffer (current-buffer))
-	(if (and vr-cmd-executing t) ;  (eq vr-cmd-executing this-command))
-; apparently this-command is not always set to the name of the
-; command, for example kill-line is executed with "kill-region" in
-; this-command, so this check doesn't really work
+	(if (and vr-cmd-executing (eq vr-cmd-executing this-command))
 	    (progn
 	      (vr-send-cmd (format "command-done %s" vr-cmd-executing))
 	      (setq vr-cmd-executing nil)))
@@ -522,7 +423,7 @@ loop without screwing up the I/O.")
 (defun vr-kill-buffer ()
   (if vr-emacs-cmds
       (progn
-	(vr-log "kill-buffer: %s\n" (current-buffer))
+	;;(vr-log "kill-buffer: %s\n" (current-buffer))
 	(vr-send-cmd (concat "kill-buffer " (buffer-name (current-buffer)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -537,7 +438,7 @@ loop without screwing up the I/O.")
       (if (funcall pred el)
 	  (setq out (cons el out)))
       )
-out))
+    out))
   
 (defun vr-add-to-activation-list (buffer)
   "Adds BUFFER, which can be a buffer name or buffer, to the list of
@@ -556,13 +457,6 @@ Mode."
     (setq vr-internal-activation-list
 	  (cons (concat "^" (regexp-quote buffer) "$")
 		vr-internal-activation-list))))
-
-(defun vr-resynchronize (buffer)
-  "asks VR mode to resynchronize this buffer, if it has gotten out of
-sync.  (That shouldn't happen, in an ideal world, but..."
-  (interactive (list (current-buffer)))
-  (set-buffer buffer)
-  (setq vr-resynchronize-buffer t))
 
 (defun vr-activate-buffer-p (buffer)
   "Predicate indicating whether BUFFER matches any REGEXP element and
@@ -618,8 +512,6 @@ interactively, sets the current buffer as the target buffer."
 	(vr-send-cmd (concat "activate-buffer " (buffer-name vr-buffer)))
 	(if vr-overlay
 	    nil
-	  (setq vr-modification-stack ())
-	  (setq vr-overlay-before-count 0)
 	  (setq vr-overlay (make-overlay (point-min) (point-max) nil nil t))
 	  (overlay-put vr-overlay 'modification-hooks '(vr-overlay-modified))
 	  (overlay-put vr-overlay 'insert-in-front-hooks '(vr-grow-overlay))
@@ -642,8 +534,8 @@ interactively, sets the current buffer as the target buffer."
   ;; This happens when we type the first char in the buffer, because I
   ;; guess it is inserted both before and after the empty overlay.
 
-  (vr-log "Grow: %s %d %d %s %d\n" (if after "After: " "Before: ") beg end
-  	  (if after (int-to-string len) "") vr-overlay-before-count)
+  ;;(vr-log "Grow: %s %d %d %s\n" (if after "After: " "Before: ") beg end
+  ;;	  (if after (int-to-string len) ""))
   (if after
       (progn
 	(move-overlay overlay
@@ -651,43 +543,12 @@ interactively, sets the current buffer as the target buffer."
 		      (max end (overlay-end overlay)))
 	(setq vr-overlay-before-count (1- vr-overlay-before-count))
 	(if (> vr-overlay-before-count 0)
-	    (progn;; (vr-log "   ignored duplicate grow\n")
+	    (progn ;; (vr-log "   ignored duplicate grow\n")
 	      nil)
-	  (vr-report-change overlay after beg end len))
-	;;(setq vr-modification-stack (cdr vr-modification-stack))
-	)
-
-    (setq vr-overlay-before-count (1+ vr-overlay-before-count))
-    ;;(setq vr-modification-stack (cons (buffer-substring beg end)
-    ;;vr-modification-stack))
-    ))
-
-(defvar vr-modification-stack () )
+	  (vr-overlay-modified overlay after beg end len)))
+    (setq vr-overlay-before-count (1+ vr-overlay-before-count))))
 
 (defun vr-overlay-modified (overlay after beg end &optional len)
-  (vr-log " overlay modified: a:%s vro:%s %d %d %d: \"%s\"\n"
-	  after (eq vr-overlay overlay) beg end (if after len 0)
-	  (buffer-substring beg end))
-  (vr-log "  modification stack: %d\n" (length vr-modification-stack))
-  (if after
-      (progn
-	(vr-log "   %s %s \n" (car vr-modification-stack)
-		(buffer-substring beg end))
-	(if (equal (car vr-modification-stack) (buffer-substring beg end))
-	    ;; the before and after text are the same, so so it's one of these
-	    ;; funky changes we can ignore.
-	    (vr-log "ignoring bogus change\n" );;nil
-	  ;; they're not equal, so we call the modification routine like before.
-	  (vr-report-change overlay after beg end len))
-	(setq vr-modification-stack (cdr vr-modification-stack))
-	(if (< 0 vr-overlay-before-count)
-	    (setq vr-overlay-before-count (1- vr-overlay-before-count))))
-
-    ;; for the before call, we just save the prechange string in the stack
-    (setq vr-modification-stack (cons (buffer-substring beg end)
-				      vr-modification-stack))))
-
-(defun vr-report-change (overlay after beg end &optional len)
   (if (and (not (run-hook-with-args-until-success 'vr-mode-modified-hook
 						  overlay after beg end len))
 	   after)
@@ -699,58 +560,27 @@ interactively, sets the current buffer as the target buffer."
       ;; it is done. 
       ;;
       ;; This is not a foolproof heuristic.
-      (progn
-;;	(vr-log " overlay modified: a:%s vro:%s %d %d %d: \"%s\"\n"
-;;		after (eq vr-overlay overlay) beg end len
-;;		(buffer-substring beg end))
-	(if (or (and (eq vr-ignore-changes 'self-insert)
-		     (eq len 0)
-		     (eq (- end beg) 1)
-		     (eq (char-after beg) last-command-char))
-		(and (eq vr-ignore-changes 'delete)
-		     (> len 0)
-		     (eq beg end)))
-	    (progn (vr-log "ignore: %d %d %d: \"%s\" %s\n" beg end len
-			   (buffer-substring beg end) vr-ignore-changes)
-		   nil)
-;	  (vr-log " After: %s %d %d %d: \"%s\"\n" overlay beg end len
-;		  (buffer-substring beg end))
-	  (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
-			     (buffer-name (overlay-buffer overlay))
-			     (1- beg) (1- end) len
-			     (buffer-modified-tick)
-			     (vr-string-replace (buffer-substring beg end)
-						"\n" "\\n"))))
-	    (if vr-ignore-changes
-		(setq vr-queued-changes (cons cmd vr-queued-changes))
-	      (vr-send-cmd cmd)))))
-    (vr-log " overlay modified: a:%s vro:%s %d %d : \"%s\"\n"
-	    after (eq vr-overlay overlay) beg end 
-	    (buffer-substring beg end))
-    )
-  (if deferred-function
-      (progn
-	(setq vr-deferred-deferred-function deferred-function)
-	(setq deferred-function nil)
-	;(debug)
-	(delete-backward-char 2)
-	;(debug)
-	(fix-else-abbrev-expansion)
-	;(debug)
-	(if (not (eq vr-deferred-deferred-function
-		     'else-expand-placeholder))
-	    (progn
-	      ;;(call-interactively deferred-deferred-function)
-	      (vr-log "report-change executing deferred function %s\n" vr-deferred-deferred-function)
-	      (setq vr-deferred-deferred-deferred-function
-		    vr-deferred-deferred-function )
-	      (setq vr-deferred-deferred-function nil)
-	      (vr-execute-command
-	       vr-deferred-deferred-deferred-function))
-	  (vr-log "report-change deferring command %s\n"
-		  vr-deferred-deferred-function))
-    ))
-  t  )
+      (if (or (and (eq vr-ignore-changes 'self-insert)
+		   (eq len 0)
+		   (eq (- end beg) 1)
+		   (eq (char-after beg) last-command-char))
+	      (and (eq vr-ignore-changes 'delete)
+		   (> len 0)
+		   (eq beg end)))
+	  (progn ;;(vr-log "ignore: %d %d %d: \"%s\"\n" beg end len
+		 ;;(buffer-substring beg end))
+	    nil)
+	;;(vr-log " After: %d %d %d: \"%s\"\n" beg end len
+	;;(buffer-substring beg end))
+	(let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
+			   (buffer-name (overlay-buffer overlay))
+			   (1- beg) (1- end) len
+			   (buffer-modified-tick)
+			   (vr-string-replace (buffer-substring beg end)
+					      "\n" "\\n"))))
+	  (if vr-ignore-changes
+	      (setq vr-queued-changes (cons cmd vr-queued-changes))
+	    (vr-send-cmd cmd))))))
 
 (defun vr-string-replace (src regexp repl)
   (let ((i 0))
@@ -769,32 +599,27 @@ interactively, sets the current buffer as the target buffer."
 
 (defun vr-sleep-while-recognizing ()
   (interactive)
-  (let* ((first t) (count 0))
-    (while (and (< count 200) vr-recognizing (string= vr-mic-state "on"))
+  (let* ((first t))
+    (while (and vr-recognizing (string= vr-mic-state "on"))
       (if first (message "Waiting for voice recognition..."))
       (setq first nil)
-      (setq count (1+ count))
       (sleep-for 0 50))
-    (if (eq count 200) 
-	(message "Time out in vr-sleep-while-recognizing!")
-      (message nil))))
+    (message nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Subprocess communication.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun vr-log (&rest s)
-  (if vr-log-do
-      (let* ((buf (get-buffer-create " *vr*"))
-	     (win (get-buffer-window buf 't)))
-	(save-excursion
-					;( message "logging")
-	  (set-buffer buf)
-	  (goto-char (point-max))
-	  (insert (apply 'format s))
-	  (if win
-	      (set-window-point win (point-max)))
-	  ))))
+  (let* ((buf (get-buffer-create " *vr*"))
+	 (win (get-buffer-window buf 't)))
+    (save-excursion
+      (set-buffer buf)
+      (goto-char (point-max))
+      (insert (apply 'format s))
+      (if win
+	  (set-window-point win (point-max)))
+      )))
 
 (defun vr-sentinel (p s)
   (if (equal s "finished\n")
@@ -894,43 +719,27 @@ interactively, sets the current buffer as the target buffer."
     (if (not vr-cmd-executing)
 	(vr-send-cmd "command-done undefined"))
     
-    (if (not (vectorp cmd))
-	(vr-execute-command (cdr vr-request))
-      (vr-log "running %s as key sequence:\n" cmd )
-      (setq unread-command-events
-	    (append unread-command-events
-		    (listify-key-sequence kseq)))
-      ) 
-	)
-  t)
-
-;; executes a command, and runs the appropriate hooks.  It's used by
-;; heard-command and by the deferred-function executions.  VR-command
-;; can either be a symbol or a list.
-(defun vr-execute-command (vr-command)
-  (let ((cmd (or (and (listp vr-command ) (car vr-command))
-		 vr-command)))
+    (if (> (length vr-request) 2)
+	(progn
 	  (run-hooks 'pre-command-hook)
 	  (condition-case err
-	      (if (and (listp vr-command) 
-		       (> (length vr-command) 1))
-		  (apply cmd (cdr vr-command))
-		(call-interactively cmd))
+	      (apply cmd (nthcdr 2 vr-request))
 	    ('wrong-number-of-arguments
 	     (ding)
 	     (message
 	      "VR Mode: Wrong number of arguments calling %s"
-	      vr-command))
+	      (cdr vr-request)))
 	    ('wrong-type-argument 'error
 				  (ding)
 				  (message "VR Mode: %s calling %s"
 					   (error-message-string err)
-					   vr-command )))
-	  (vr-log "running post-command-hook for %s\n" cmd)
- 	  (let ((this-command cmd))
+					   (cdr vr-request))))
+	  (let ((this-command vr-cmd-executing))
 	    (run-hooks 'post-command-hook)))
+      (setq unread-command-events
+	    (append unread-command-events
+		    (listify-key-sequence kseq)))))
   t)
-
 
 (defun vr-cmd-mic-state (vr-request)
   (let ((state (car (cdr vr-request))))
@@ -947,193 +756,77 @@ interactively, sets the current buffer as the target buffer."
   (let ((buffer (nth 1 vr-request))
 	(tick (nth 2 vr-request))
 	vr-text)
-    (vr-log "get-buffer-info: current buffer: %s vr-buffer:%s\n"
-	    (buffer-name) vr-buffer)
-    (if (not (equal vr-buffer (get-buffer buffer)))
-	(progn
-	  (ding)
-	  (message "VR Mode: get-buffer-info: %s is not %s"
-		   buffer (buffer-name vr-buffer))    
-
-	  ;; make sure that we always give information for the buffer that
-	  ;; was asked for, even if we ding and the wrong buffer is
-	  ;; selected.  This almost certainly means that the subprocess
-	  ;; has not had time to update its idea of current buffer
-	  (save-excursion
-	    (set-buffer (get-buffer buffer))
-	    (vr-log "buffer synchronization problem: using %s\n" 
-		    (buffer-name (current-buffer)))
-	    (vr-send-reply (1- (point)))
-	    (vr-send-reply (1- (point)))
-	    (vr-send-reply (1- (window-start)))
-	    (vr-send-reply (1- (window-end)))
-	    (if (eq (buffer-modified-tick) tick)
-		(vr-send-reply "0 not modified")
-	      (vr-send-reply "1 modified")
-	      (vr-send-reply (format "%d" (buffer-modified-tick)))
-	      (setq vr-text (buffer-string))
-	      (vr-send-reply (length vr-text))
-	      (vr-send-reply vr-text))
-	    ))
-
-      ;;
-      ;; If mouse-drag-overlay exists in our buffer, it
-      ;; overrides vr-select-overlay.
-      ;;
-      (let* ((mdo mouse-drag-overlay)
-	     (sel-buffer (overlay-buffer mdo)))
-	(vr-log " %s %s \n" vr-select-overlay sel-buffer)
-	(if (eq sel-buffer vr-buffer)
-	    (move-overlay vr-select-overlay
-			  (overlay-start mdo)
-			  (overlay-end mdo)
-			  sel-buffer)))
-
-      ;;
-      ;; Send selection (or point) and viewable window.
-      ;;
-      (let ((sel-buffer (overlay-buffer vr-select-overlay)))
-	(if (eq sel-buffer vr-buffer)
-	    (progn
-	      (vr-send-reply (1- (overlay-start vr-select-overlay)))
-	      (vr-send-reply (1- (overlay-end vr-select-overlay)))
-	      )
-	  (vr-send-reply (1- (point)))
-	  (vr-send-reply (1- (point)))
-	  ))
-      (vr-send-reply (1- (window-start)))
-      (vr-send-reply (1- (window-end)))
-      ;;
-      ;; Then, send buffer contents, if modified.
-      ;;
-
-      (if (and (not vr-resynchronize-buffer) (eq (buffer-modified-tick) tick))
-	  (vr-send-reply "0 not modified")
-	(if vr-resynchronize-buffer
-	    (vr-log "buffer resynchronization requested \n"))
-	(vr-send-reply "1 modified")
-	(vr-send-reply (format "%d" (buffer-modified-tick)))
-	(setq vr-text (buffer-string))
-	(vr-send-reply (length vr-text))
-	(vr-send-reply vr-text)
-	(setq vr-resynchronize-buffer nil))))
+    (if (equal vr-buffer (get-buffer buffer))
+	nil
+      (ding)
+      (message "VR Mode: get-buffer-info: %s is not %s"
+	       buffer (buffer-name vr-buffer)))
+		   
+    ;;
+    ;; If mouse-drag-overlay exists in our buffer, it
+    ;; overrides vr-select-overlay.
+    ;;
+    (let* ((mdo mouse-drag-overlay)
+	   (sel-buffer (overlay-buffer mdo)))
+      (if (eq sel-buffer vr-buffer)
+	  (move-overlay vr-select-overlay
+			(overlay-start mdo)
+			(overlay-end mdo)
+			sel-buffer)))
+		   
+    ;;
+    ;; Send selection (or point) and viewable window.
+    ;;
+    (let ((sel-buffer (overlay-buffer vr-select-overlay)))
+      (if (eq sel-buffer vr-buffer)
+	  (progn
+	    (vr-send-reply (1- (overlay-start vr-select-overlay)))
+	    (vr-send-reply (1- (overlay-end vr-select-overlay)))
+	    )
+	(vr-send-reply (1- (point)))
+	(vr-send-reply (1- (point)))
+	))
+    (vr-send-reply (1- (window-start)))
+    (vr-send-reply (1- (window-end)))
+    ;;
+    ;; Then, send buffer contents, if modified.
+    ;;
+    (if (eq (buffer-modified-tick) tick)
+	(vr-send-reply "0 not modified")
+      (vr-send-reply "1 modified")
+      (vr-send-reply (format "%d" (buffer-modified-tick)))
+      (setq vr-text (buffer-string))
+      (vr-send-reply (length vr-text))
+      (vr-send-reply vr-text)))
   t)
 
 (defun vr-cmd-make-changes (vr-request)
   (if (eq (current-buffer) vr-buffer)
-      (let ((start (1+ (nth 1 vr-request)))
-	    (num-chars (nth 2 vr-request))
-	    (text (nth 3 vr-request))
-	    (sel-start (1+ (nth 4 vr-request)))
-	    (sel-chars (nth 5 vr-request))
-	    vr-queued-changes)
-	(if (and buffer-read-only (or (< 0 num-chars) (< 0 (length text))))
-	    ;; if the buffer is read-only we don't make any changes
-	    ;; to the buffer, and instead we send the 
-	    ;; the inverse command back
-	    (progn
-	      (vr-log "make changes:Buffer is read-only %d %d\n"
-		      num-chars (length text))
-	      (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
-				 (buffer-name) (1- start)
-				 (+ (1- start) num-chars) (length text)
-				 (buffer-modified-tick)
-				 (vr-string-replace (buffer-substring start
-								      (+ start num-chars))
-						    "\n" "\\n"))))
-		(setq vr-queued-changes (cons cmd
-					      vr-queued-changes))))
-	    
-	  ;; if it's not read-only we perform the changes as before
+      (progn
+	(let ((start (1+ (nth 1 vr-request)))
+	      (num-chars (nth 2 vr-request))
+	      (text (nth 3 vr-request))
+	      (sel-start (1+ (nth 4 vr-request)))
+	      (sel-chars (nth 5 vr-request))
+	      vr-queued-changes)
 	  (let ((vr-ignore-changes 'delete))
 	    (delete-region start (+ start num-chars)))
 	  (goto-char start)
 	  (let ((vr-ignore-changes 'self-insert))
-	    ;;we make the changes by inserting the appropriate
-	    ;;keystrokes and evaluating them
-	    (setq unread-command-events
-		  (append unread-command-events
-			  (listify-key-sequence text)))
-	    (while unread-command-events
-	      (let* ((event(read-key-sequence-vector nil))
-		     (command (key-binding event))
-		     (this-command command)
-		     (last-command-char (elt event 0))
-		     (last-command-event (elt event 0))
-		     (last-command-keys event)
-		     )
-		(vr-log "key-sequence %s %s %s\n" event
-			command last-command-char)
-		(run-hooks 'pre-command-hook)
-		(if (eq command 'self-insert-command)
-		    (command-execute command nil)
-		  (vr-log "command is not a self insert: %s\n"
-			  command )
-		  ;; send back a "delete command", since when
-		  ;; command is executed it will send the insertion.
-		  (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
-				     (buffer-name) (1- (point)) (point)
-				     1 (buffer-modified-tick) ""))
-			(vr-ignore-changes 'command-insert ))
-		    (setq vr-queued-changes (cons cmd
-						  vr-queued-changes))
-		    ;; exit-minibuffer is a command that does not
-		    ;; return properly , so to avoid timeouts waiting
-		    ;; for the replies, we put it in the deferred
-		    ;; function
-		    (if (memq command vr-nonlocal-exit-commands )
-			(setq vr-deferred-deferred-function command )
-		      (command-execute command nil))
-		    (vr-log "executed command: %s\n" command)
-		    ))
-		(run-hooks 'post-command-hook)
-		))); ends self-insert region
-	  ;; whether or not we should put point where
-	  ;; NaturallySpeaking wants is not so easy to decide.  If
-	  ;; point is not there, dictation won't work correctly if
-	  ;; there are characters in front of point.  On the other
-	  ;; hand, keys can be bound to multiple characters, and
-	  ;; deferred functions can move point in which case
-	  ;; NaturallySpeaking has no idea where it should be.  This
-	  ;; is some kind of heuristic.
-	  (if (equal (length text) 0)
-	      ;; this is a pure selection or cursor repositioning,
-	      ;; just put it there
-	      (progn
-		(vr-log "make changes: putting point at %s\n" sel-start)
-		(goto-char sel-start))
-	    ;; Text is being inserted, so we move point to where it
-	    ;; should be relative to the end of the string we got from
-	    ;; NaturallySpeaking.  This should work even if keys are
-	    ;; bound to multiple characters, and surprisingly enough
-	    ;; even if deferred functions have moved point completely!
-	    (vr-log "make changes: positioning point relative\n")
-	    (goto-char (+ (point)
-			  (- sel-start (+ start (length text)))))
-	    )
+	    (mapcar (lambda (c)
+		      (let ((last-command-char c))
+			(self-insert-command 1)))
+		    text))
+	  (goto-char sel-start)
 	  (delete-overlay mouse-drag-overlay)
 	  (if (equal sel-chars 0)
 	      (delete-overlay vr-select-overlay)
 	    (move-overlay vr-select-overlay
 			  sel-start (+ sel-start sel-chars)
-			  (current-buffer))))
-
-	;; in any case, we send the replies and the queued changes.
-	(vr-log "sending tick\n")
-	(vr-send-reply (buffer-modified-tick))
-	(vr-send-reply (length vr-queued-changes))
-	(mapcar 'vr-send-reply (nreverse vr-queued-changes))
-	(if vr-deferred-deferred-function
-	    (progn
-	      (vr-log "executing deferred function in make-changes: %s\n"
-		      vr-deferred-deferred-function)
-	      (setq vr-deferred-deferred-deferred-function
-		    vr-deferred-deferred-function )
-	      (setq vr-deferred-deferred-function nil)
-	      (fix-else-abbrev-expansion)
-	      (vr-execute-command vr-deferred-deferred-deferred-function)))
-	)
-    ;; if the current buffer is not VR-buffer
+			  (current-buffer)))
+	  (vr-send-reply (buffer-modified-tick))
+	  (vr-send-reply (length vr-queued-changes))
+	  (mapcar 'vr-send-reply vr-queued-changes)))
     (vr-send-reply "-1"))
   t)
 
@@ -1143,26 +836,13 @@ interactively, sets the current buffer as the target buffer."
 ;; with respect to speech recognition events
 (defun vr-cmd-recognition (vr-request)
   (let ((state (nth 1 vr-request)))
-    (progn
-      (vr-log "recognition %s: current buffer: %s vr-buffer:%s\n"
-	      state (buffer-name) vr-buffer)
-      (cond ((eq state 'begin)
-					; if recognition starts and VR
-					; buffer is not the current
-					; buffer, we might have a
-					; potential problem with
-					; synchronization.  In that
-					; case, let's try calling
-					; maybe-activate-buffer and
-					; see if it's not already too
-					; late.
-	     (vr-maybe-activate-buffer (current-buffer))
-	     (run-at-time 0 nil 'vr-sleep-while-recognizing)
-	     (setq vr-recognizing t))
-	    ((eq state 'end)
-	     (setq vr-recognizing nil))
-	    (t
-	     (error "Unknown recognition state: %s" state)))))
+    (cond ((eq state 'begin)
+	   (run-at-time 0 nil 'vr-sleep-while-recognizing)
+	   (setq vr-recognizing t))
+	  ((eq state 'end)
+	   (setq vr-recognizing nil))
+	  (t
+	   (error "Unknown recognition state: %s" state))))
   t)
 		
 (defun vr-output-filter (p s)
@@ -1275,7 +955,6 @@ off -> on, {on,sleeping} -> off."
       (progn
 	(setq vr-emacs-cmds (open-network-stream "vr-emacs" nil
 						 host port))
-	(vr-log "connecting to VR.exe %s" vr-emacs-cmds)
 	(setq vr-dns-cmds (open-network-stream "vr-dns" nil host port))
 	(process-kill-without-query vr-emacs-cmds)
 	(process-kill-without-query vr-dns-cmds)
@@ -1337,7 +1016,6 @@ off -> on, {on,sleeping} -> off."
 
 (defun vr-kill-emacs ()
   (vr-mode 0)
-  (sleep-for 1)
   t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1360,7 +1038,6 @@ instructions.
   (if vr-mode
       ;; Entering VR mode
       (progn
-	(vr-log "starting VR mode %s" vr-host)
 	(setq vr-reading-string nil)
 	(setq vr-mic-state "not connected")
 	(set-default 'vr-mode-line (concat " VR-" vr-mic-state))
