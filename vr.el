@@ -2,111 +2,25 @@
 ;; VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
 ;;
 ;; Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
-;; See the file COPYING.txt for terms of use.
 ;;
 ;; $Id$
-;; $Log$
-;; Revision 1.10  2001/12/05 21:31:27  patrik
-;; Advised else-replicate-placeholder-string to resynchronize the buffer
-;; after a placeholder has been expanded, since that often makes it lose
-;; synch.  This is a temporary solution at best, but fixing it requires
-;; changing the communication protocol (there's a code branch for that)
-;; and then fiddling with the behavior of else.
 ;;
-;; I don't like these interaction issues with other packages -- we get
-;; stuck with coding a million special cases.
+;; This file is part of Emacs VR Mode.
 ;;
-;; Revision 1.9  2001/11/17 01:22:03  patrik
-;; Defined deferred-function as a variable, so you don't have to worry
-;; about that if you don't load pbvElse.  It also changed the list of
-;; nonlocal exit commands to a constant.
+;; Emacs VR Mode is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation; either version 2 of the License, or (at
+;; your option) any later version.
 ;;
-;; Revision 1.8  2001/11/08 08:23:57  patrik
-;; Fixed a little bug concerning the positioning of point in
-;; make-changes.  Before we would only reposition it manually if the user
-;; made a selection or repositioning of point.  This messed up the
-;; behavior of NaturallySpeaking when point was already at the beginning
-;; of a word.  In this case, NaturallySpeaking will insert a space, but
-;; wants point to be at the end of the first word, not that the beginning
-;; of the second which is where it will be after just running the self
-;; insertion.  Solved this by making a "relative" repositioning, meaning
-;; that point is put where NaturallySpeaking wanted it to be relative to
-;; the end of the insertion string.  This solves the spacing behavior
-;; above (which also would make NaturallySpeaking refuse to scratch,
-;; since point had been moved), and even works with the deferred-function
-;; movement commands, since it is relative to where point ends up being.
+;; Emacs VR Mode is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; General Public License for more details.
 ;;
-;; Revision 1.7  2001/11/08 07:03:08  patrik
-;; When quitting a remote Emacs, it would sometimes close the window
-;; before VR.EXE had had time to process the shutdown, so I added a delay
-;; in the kill-Emacs hook, after turning VR mode off.  Seems to work.
-;;
-;; Revision 1.6  2001/09/25 01:44:38  patrik
-;; Worked around the exit-minibuffer lockup by checking if the command
-;; about to be executed is one of the commands that never exits.  If so,
-;; it uses the deferred-function mechanism instead.  The commands for
-;; which this is done are kept in the variable vr-nonlocal-exit-commands.
-;;
-;; It seems to work well.  You cannot, of course, continue dictating
-;; after the New-Line in the minibuffer, but then doing so seems a little
-;; excessive as well...
-;;
-;; Revision 1.5  2001/09/10 23:35:10  patrik
-;; Smoothed out a number of rough edges concerning the continuous
-;; commands.  Most of the changes are in pbvElse, but there were a number
-;; of problems with the deferred-function variables not being cleared
-;; properly.  It still seems that sometimes expand-placeholder, which
-;; should be executed in make-changes, does not get run.  Instead, it
-;; will be run the next time you enter make-changes.  I have no idea why
-;; this happens.
-;;
-;; Also fixed some problems with the execute-function function, stupid
-;; Lisp stuff like whether the command sequence is a list or a vector,
-;; and so on.
-;;
-;; Also added the running of pre-command-hook and post-command-hook for
-;; our "simulated" keyboard input.  I hope that this would have cured the
-;; fact that macro definitions don't recognize the VR mode keystrokes,
-;; but it didn't.  I don't know how macros read keystrokes when they're
-;; being defined.
-;;
-;; Revision 1.4  2001/09/01 10:56:47  patrik
-;; Changed the command processing so that all commands except those
-;; specified as vectors of keystrokes are executed directly.  The
-;; advantage of doing this is that commands executed as keystrokes change
-;; the active buffer to the minibuffer, so the changes to the buffer were
-;; not communicated properly.  This was the case for yank, for example.
-;;
-;; Revision 1.3  2001/09/01 08:46:53  patrik
-;; Fixed several problems with the abbreviation mode and ELSE.  The
-;; routine handle-abbrev-expansion used to reinsert the placeholder text
-;; that ELSE would remove when you type into the placeholder.  It would
-;; then also run the commands and avoid the expansion by an on purpose
-;; error.  This messed up VR mode since the error would stop processing
-;; of the changes.  Made a very similar routine called
-;; fix-else-abbrev-expansion, which would reinsert the placeholder text
-;; but not call the command.  It's now called just before the command is
-;; executed in vr-report-change.
-;;
-;; Also made a temporary fix for the fact that expand-placeholder is not
-;; a command that returns quickly, but requires user input.  Since it is
-;; called before make-changes sends tick and change counts, vr.exe would
-;; timeout.  The fix checks if the command it is about to execute is
-;; expand-placeholder, and if it is report-changes simply doesn't do
-;; anything.  Instead, make-changes, after sending tick and change
-;; counts, checks if deferred-deferred-function is set, and in that case
-;; executes the command.  Of course this doesn't work if
-;; expand-placeholder is not the last command in the utterance, but on
-;; the other hand that doesn't make sense, because expand-placeholder
-;; requires input, so it should be the last.
-;;
-;; It still isn't perfect, because ELSE uses before-change-functions to
-;; delete the placeholder, which means that VR mode will get out of
-;; sync.  I can't think of a simple way of taking care of this, when the
-;; Emacs buffer changes before any characters have been entered, and
-;; vr.exe thinks that all the characters have already been typed, it's
-;; not straightforward to sort that out.
-;;
+;; You should have received a copy of the GNU General Public License
+;; along with Emacs VR Mode; if not, write to the Free Software
+;; Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+;; USA
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; User options

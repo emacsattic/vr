@@ -1,5 +1,5 @@
 VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
-Available at <http://www.mit.edu/~bjaspan>.
+	Soon to be available at <http://emacs-vr-mode.sourceforge.net>.
 
 Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
 See the file COPYING.txt for terms of use.
@@ -9,6 +9,9 @@ Emacs.  You must already have and be familiar with NaturallySpeaking
 3.52 and GNU Emacs 19.34 (or newer versions) in order to use VR mode.
 
 RELEASE NOTES:  Release 005
+
+Release 005 was released under the GNU General Public License in
+December 2001.
 
 This release fixes the known bugs in V005 beta 1.
 Changes include:
