@@ -2,8 +2,24 @@
   VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
 
   Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
-  See the file COPYING.txt for terms of use.
-  */
+
+  This file is part of Emacs VR Mode.
+
+  Emacs VR Mode is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or (at
+  your option) any later version.
+
+  Emacs VR Mode is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with Emacs VR Mode; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
+  USA
+*/
 
 #include <windows.h>
 #include <stdio.h>
@@ -154,13 +170,8 @@ int Client::activate_buffer(const char *name)
   BufMap *m;
 
   if (activeBuffer != NULL) {
-    debug_lprintf(strlen(activeBuffer->bufnam)+ 36, "   deactivating buffer: %s\r\n", activeBuffer->bufnam);
     if (activeBuffer->dict != NULL)
       activeBuffer->dict->ActiveSet(FALSE);
-    //BOOL test;
-    //activeBuffer->dict->ActiveGet(&test);
-    //if(test==FALSE)
-    //  debug_lprintf(50, "   dictation is deactivated.\r\n");
     activeBuffer = NULL;
   }
 
