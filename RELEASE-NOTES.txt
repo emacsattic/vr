@@ -7,6 +7,28 @@ See the file COPYING.txt for terms of use.
 VR Mode integrates the features of Dragon NaturallySpeaking with GNU
 Emacs.  You must already have and be familiar with NaturallySpeaking
 3.52 and GNU Emacs 19.34 (or newer versions) in order to use VR mode.
+However, there are problems with Emacs 21.x.
+
+
+RELEASE NOTES: Release 009
+
+Apparently, I was wrong about usable with Emacs 21.x.  Unfortunately,
+I have no reason to think this version will work better in that
+respect.  However, it should have fixed the problem causing an
+assertion failure to pop up in certain situations, most often when
+vr.exe would timeout waiting for Emacs to complete a command.  It
+should also have fixed a problem that would cause a crash if an active
+buffer was deleted.  (The only time I had encountered this was if you
+activated the VC buffer into which you type check-in comments.)  It
+should also properly handle cases when Emacs itself crashes, in such a
+way that it properly unregisters itself from NaturallySpeaking.
+
+VR mode now includes the abbreviation commands that used to be in the
+old PBV kit file pbvElse.el. Since I've spent some amount of time
+getting these to work with VR mode, it seems reasonable to make sure
+everyone has access to this functionality if they want, without
+finding the other file.  See the README for setup information.
+
 
 RELEASE NOTES: Release 008 beta
 
