@@ -40,7 +40,8 @@ VCmdSink::~VCmdSink()
 {
   if (theMenu) {
     theMenu->ActiveSet(FALSE);
-    theMenu->Release();
+    //theMenu->Release();
+    delete (theMenu);
   }
 }
 

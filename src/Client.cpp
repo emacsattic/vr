@@ -70,7 +70,7 @@ Client::~Client()
   }
   if (voxCmd) {
     voxCmd->UnRegister();
-    voxCmd->Release();
+    //voxCmd->Release();
     voxCmd = NULL;
   }
   free(clss);

@@ -80,9 +80,17 @@ STDMETHODIMP_(ULONG) DictSink::Release(void)
 
 STDMETHODIMP DictSink::RecognitionStarting()
 {
+    BOOL test;
+    m_pIDgnDictCustom->ActiveGet(&test);
+    if(test==FALSE)
+      debug_lprintf(50, "    Dictation is deactivated in %s\r\n", name);
+    else {
+
     int modified, window_start, window_end, sel_start, sel_end, length;
     char *text, buf[BUFSIZ];
     HRESULT hRes;
+
+    //debug_lprintf(64, "**  recognition starting\r\n");
 
     sprintf(buf, "(get-buffer-info \"%s\" %d)\n", name, tick);
     client->send_cmd(buf);
@@ -127,6 +135,7 @@ STDMETHODIMP DictSink::RecognitionStarting()
 
     hRes = m_pIDgnDictCustom->UnLock(); // unlock internal buffer
     ReturnIfFailed(hRes,0, "IDgnDictCustom->UnLock() failed, hRes = 0x%X");
+    }
 
     return S_OK; 
 }

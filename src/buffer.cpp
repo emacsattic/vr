@@ -154,8 +154,13 @@ int Client::activate_buffer(const char *name)
   BufMap *m;
 
   if (activeBuffer != NULL) {
+    debug_lprintf(strlen(activeBuffer->bufnam)+ 36, "   deactivating buffer: %s\r\n", activeBuffer->bufnam);
     if (activeBuffer->dict != NULL)
       activeBuffer->dict->ActiveSet(FALSE);
+    //BOOL test;
+    //activeBuffer->dict->ActiveGet(&test);
+    //if(test==FALSE)
+    //  debug_lprintf(50, "   dictation is deactivated.\r\n");
     activeBuffer = NULL;
   }
 

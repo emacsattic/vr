@@ -165,6 +165,7 @@ void cleanupNatSpeak()
     delete c;
   }
   if (engine) {
+    engine->UnRegister (FALSE);
     engine->Release();
     engine = NULL;
   }

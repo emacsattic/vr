@@ -43,7 +43,8 @@ STDMETHODIMP_(ULONG) EngSink::Release(void)
   m_nRefCount--;
   if (m_nRefCount == 0) {
     delete this;
-  }
+    return 0;
+}
   return m_nRefCount;
 }
 
