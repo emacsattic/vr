@@ -6,6 +6,25 @@
 ;;
 ;; $Id$
 ;; $Log$
+;; Revision 1.5  2001/09/10 23:35:10  patrik
+;; Smoothed out a number of rough edges concerning the continuous
+;; commands.  Most of the changes are in pbvElse, but there were a number
+;; of problems with the deferred-function variables not being cleared
+;; properly.  It still seems that sometimes expand-placeholder, which
+;; should be executed in make-changes, does not get run.  Instead, it
+;; will be run the next time you enter make-changes.  I have no idea why
+;; this happens.
+;;
+;; Also fixed some problems with the execute-function function, stupid
+;; Lisp stuff like whether the command sequence is a list or a vector,
+;; and so on.
+;;
+;; Also added the running of pre-command-hook and post-command-hook for
+;; our "simulated" keyboard input.  I hope that this would have cured the
+;; fact that macro definitions don't recognize the VR mode keystrokes,
+;; but it didn't.  I don't know how macros read keystrokes when they're
+;; being defined.
+;;
 ;; Revision 1.4  2001/09/01 10:56:47  patrik
 ;; Changed the command processing so that all commands except those
 ;; specified as vectors of keystrokes are executed directly.  The
@@ -410,6 +429,9 @@ reply when done.")
 (defvar vr-resynchronize-buffer nil)
 (make-variable-buffer-local 'vr-resynchronize-buffer)
 
+(defvar vr-deferred-deferred-function nil)
+(defvar vr-deferred-deferred-deferred-function nil)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Key bindings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -674,26 +696,27 @@ interactively, sets the current buffer as the target buffer."
     )
   (if deferred-function
       (progn
-	(vr-log "executing deferred function %s\n" deferred-function)
-;	(delete-region 100 102 )
-;	(let ((current-point (point)))
-;	  (goto-char (point-min))
-;	  (delete-region (- current-point 2) current-point)
-;	  (goto-char (- current-point 2)))
-	(setq deferred-deferred-function deferred-function)
+	(setq vr-deferred-deferred-function deferred-function)
 	(setq deferred-function nil)
 	;(debug)
 	(delete-backward-char 2)
 	;(debug)
 	(fix-else-abbrev-expansion)
 	;(debug)
-	(if (not (eq deferred-deferred-function
+	(if (not (eq vr-deferred-deferred-function
 		     'else-expand-placeholder))
 	    (progn
-	      (call-interactively deferred-deferred-function) 
-	      (setq deferred-deferred-function nil)))
+	      ;;(call-interactively deferred-deferred-function)
+	      (vr-log "report-change executing deferred function %s\n" vr-deferred-deferred-function)
+	      (setq vr-deferred-deferred-deferred-function
+		    vr-deferred-deferred-function )
+	      (setq vr-deferred-deferred-function nil)
+	      (vr-execute-command
+	       vr-deferred-deferred-deferred-function))
+	  (vr-log "report-change deferring command %s\n"
+		  vr-deferred-deferred-function))
     ))
-  )
+  t  )
 
 (defun vr-string-replace (src regexp repl)
   (let ((i 0))
@@ -838,25 +861,7 @@ interactively, sets the current buffer as the target buffer."
 	(vr-send-cmd "command-done undefined"))
     
     (if (not (vectorp cmd))
-	(progn
-	  (run-hooks 'pre-command-hook)
-	  (condition-case err
-	      (if (> (length vr-request) 2)
-		  (apply cmd (nthcdr 2 vr-request))
-		(call-interactively cmd))
-	    ('wrong-number-of-arguments
-	     (ding)
-	     (message
-	      "VR Mode: Wrong number of arguments calling %s"
-	      (cdr vr-request)))
-	    ('wrong-type-argument 'error
-				  (ding)
-				  (message "VR Mode: %s calling %s"
-					   (error-message-string err)
-					   (cdr vr-request))))
-	  (vr-log "running post-command-hook for %s\n" cmd)
- 	  (let ((this-command vr-cmd-executing))
-	    (run-hooks 'post-command-hook)))
+	(vr-execute-command (cdr vr-request))
       (vr-log "running %s as key sequence:\n" cmd )
       (setq unread-command-events
 	    (append unread-command-events
@@ -864,6 +869,34 @@ interactively, sets the current buffer as the target buffer."
       ) 
 	)
   t)
+
+;; executes a command, and runs the appropriate hooks.  It's used by
+;; heard-command and by the deferred-function executions.  VR-command
+;; can either be a symbol or a list.
+(defun vr-execute-command (vr-command)
+  (let ((cmd (or (and (listp vr-command ) (car vr-command))
+		 vr-command)))
+	  (run-hooks 'pre-command-hook)
+	  (condition-case err
+	      (if (and (listp vr-command) 
+		       (> (length vr-command) 1))
+		  (apply cmd (cdr vr-command))
+		(call-interactively cmd))
+	    ('wrong-number-of-arguments
+	     (ding)
+	     (message
+	      "VR Mode: Wrong number of arguments calling %s"
+	      vr-command))
+	    ('wrong-type-argument 'error
+				  (ding)
+				  (message "VR Mode: %s calling %s"
+					   (error-message-string err)
+					   vr-command )))
+	  (vr-log "running post-command-hook for %s\n" cmd)
+ 	  (let ((this-command cmd))
+	    (run-hooks 'post-command-hook)))
+  t)
+
 
 (defun vr-cmd-mic-state (vr-request)
   (let ((state (car (cdr vr-request))))
@@ -982,6 +1015,8 @@ interactively, sets the current buffer as the target buffer."
 	    (delete-region start (+ start num-chars)))
 	  (goto-char start)
 	  (let ((vr-ignore-changes 'self-insert))
+	    ;;we make the changes by inserting the appropriate
+	    ;;keystrokes and evaluating them
 	    (setq unread-command-events
 		  (append unread-command-events
 			  (listify-key-sequence text)))
@@ -995,6 +1030,7 @@ interactively, sets the current buffer as the target buffer."
 		     )
 		(vr-log "key-sequence %s %s %s\n" event
 			command last-command-char)
+		(run-hooks 'pre-command-hook)
 		(if (eq command 'self-insert-command)
 		    (command-execute command nil)
 		  (vr-log "command is not a self insert: %s\n"
@@ -1010,6 +1046,7 @@ interactively, sets the current buffer as the target buffer."
 		    (command-execute command nil)
 		    (vr-log "executed command: %s\n" command)
 		    ))
+		(run-hooks 'post-command-hook)
 		)))
 	  (if (equal (length text) 0)
 	      (progn
@@ -1027,10 +1064,15 @@ interactively, sets the current buffer as the target buffer."
 	(vr-send-reply (buffer-modified-tick))
 	(vr-send-reply (length vr-queued-changes))
 	(mapcar 'vr-send-reply (nreverse vr-queued-changes))
-	(if deferred-deferred-function
+	(if vr-deferred-deferred-function
 	    (progn
-	      (call-interactively deferred-deferred-function)
-	      (setq deferred-deferred-function nil)))
+	      (vr-log "executing deferred function in make-changes: %s\n"
+		      vr-deferred-deferred-function)
+	      (setq vr-deferred-deferred-deferred-function
+		    vr-deferred-deferred-function )
+	      (setq vr-deferred-deferred-function nil)
+	      (fix-else-abbrev-expansion)
+	      (vr-execute-command vr-deferred-deferred-deferred-function)))
 	)
     ;; if the current buffer is not VR-buffer
     (vr-send-reply "-1"))
