@@ -4,6 +4,38 @@
 ;; Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
 ;; See the file COPYING.txt for terms of use.
 ;;
+;; $Id$
+;; $Log$
+;; Revision 1.3  2001/09/01 08:46:53  patrik
+;; Fixed several problems with the abbreviation mode and ELSE.  The
+;; routine handle-abbrev-expansion used to reinsert the placeholder text
+;; that ELSE would remove when you type into the placeholder.  It would
+;; then also run the commands and avoid the expansion by an on purpose
+;; error.  This messed up VR mode since the error would stop processing
+;; of the changes.  Made a very similar routine called
+;; fix-else-abbrev-expansion, which would reinsert the placeholder text
+;; but not call the command.  It's now called just before the command is
+;; executed in vr-report-change.
+;;
+;; Also made a temporary fix for the fact that expand-placeholder is not
+;; a command that returns quickly, but requires user input.  Since it is
+;; called before make-changes sends tick and change counts, vr.exe would
+;; timeout.  The fix checks if the command it is about to execute is
+;; expand-placeholder, and if it is report-changes simply doesn't do
+;; anything.  Instead, make-changes, after sending tick and change
+;; counts, checks if deferred-deferred-function is set, and in that case
+;; executes the command.  Of course this doesn't work if
+;; expand-placeholder is not the last command in the utterance, but on
+;; the other hand that doesn't make sense, because expand-placeholder
+;; requires input, so it should be the last.
+;;
+;; It still isn't perfect, because ELSE uses before-change-functions to
+;; delete the placeholder, which means that VR mode will get out of
+;; sync.  I can't think of a simple way of taking care of this, when the
+;; Emacs buffer changes before any characters have been entered, and
+;; vr.exe thinks that all the characters have already been typed, it's
+;; not straightforward to sort that out.
+;;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; User options
@@ -643,11 +675,18 @@ interactively, sets the current buffer as the target buffer."
 ;	  (goto-char (- current-point 2)))
 	(setq deferred-deferred-function deferred-function)
 	(setq deferred-function nil)
+	;(debug)
 	(delete-backward-char 2)
-	(call-interactively deferred-deferred-function)
+	;(debug)
+	(fix-else-abbrev-expansion)
+	;(debug)
+	(if (not (eq deferred-deferred-function
+		     'else-expand-placeholder))
+	    (progn
+	      (call-interactively deferred-deferred-function) 
+	      (setq deferred-deferred-function nil)))
     ))
   )
-
 
 (defun vr-string-replace (src regexp repl)
   (let ((i 0))
@@ -904,92 +943,85 @@ interactively, sets the current buffer as the target buffer."
 
 (defun vr-cmd-make-changes (vr-request)
   (if (eq (current-buffer) vr-buffer)
-      (progn
-	(let ((start (1+ (nth 1 vr-request)))
-	      (num-chars (nth 2 vr-request))
-	      (text (nth 3 vr-request))
-	      (sel-start (1+ (nth 4 vr-request)))
-	      (sel-chars (nth 5 vr-request))
-	      vr-queued-changes)
-	  (progn
-	    (if (and buffer-read-only (or (< 0 num-chars) (< 0 (length text))))
-	      ; if the buffer is read-only we don't make any changes
-	      ; to the buffer, and instead we send the 
-	      ; the inverse command back
-	      (progn
-		(vr-log "make changes:Buffer is read-only %d %d\n"
-			num-chars (length text))
-		(let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
-				   (buffer-name)
-				   (1- start) (+ (1- start) num-chars)
-				   (length text)
-				   (buffer-modified-tick)
-				   (vr-string-replace (buffer-substring start
-									(+ start num-chars))
-						      "\n" "\\n"))))
-		  (setq vr-queued-changes (cons cmd
-						vr-queued-changes))))
-
-	    ; if it's not read-only we perform the changes as before
-	    (progn 
-	      (let ((vr-ignore-changes 'delete))
-		(delete-region start (+ start num-chars)))
-	      (goto-char start)
-	      (let ((vr-ignore-changes 'self-insert))
-		(setq unread-command-events (append
-					     unread-command-events
-					     (listify-key-sequence
-					       text)))
-		(while unread-command-events
-		  (let* ((event(read-key-sequence-vector nil))
-			 (command (key-binding event))
-			 (this-command command)
-			 (last-command-char (elt event 0))
-			 (last-command-event (elt event 0))
-			 (last-command-keys event)
-			 )
-		    (vr-log "key-sequence %s %s %s\n" event
-			    command last-command-char)
-		    (if (eq command 'self-insert-command)
-			(command-execute command nil)
-		      (vr-log "command is not a self insert: %s\n"
-			      command )
-		      ; send back a "delete command", since when
-		      ; command is executed it will send the insertion.
-		      (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
-					 (buffer-name)
-					 (1- (point)) (point)
-					 1
-					 (buffer-modified-tick)
-					 ""))
-			    (vr-ignore-changes 'command-insert ))
-			(setq vr-queued-changes (cons cmd
-						      vr-queued-changes))
-			(command-execute command nil)
+      (let ((start (1+ (nth 1 vr-request)))
+	    (num-chars (nth 2 vr-request))
+	    (text (nth 3 vr-request))
+	    (sel-start (1+ (nth 4 vr-request)))
+	    (sel-chars (nth 5 vr-request))
+	    vr-queued-changes)
+	(if (and buffer-read-only (or (< 0 num-chars) (< 0 (length text))))
+	    ;; if the buffer is read-only we don't make any changes
+	    ;; to the buffer, and instead we send the 
+	    ;; the inverse command back
+	    (progn
+	      (vr-log "make changes:Buffer is read-only %d %d\n"
+		      num-chars (length text))
+	      (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
+				 (buffer-name) (1- start)
+				 (+ (1- start) num-chars) (length text)
+				 (buffer-modified-tick)
+				 (vr-string-replace (buffer-substring start
+								      (+ start num-chars))
+						    "\n" "\\n"))))
+		(setq vr-queued-changes (cons cmd
+					      vr-queued-changes))))
+	    
+	  ;; if it's not read-only we perform the changes as before
+	  (let ((vr-ignore-changes 'delete))
+	    (delete-region start (+ start num-chars)))
+	  (goto-char start)
+	  (let ((vr-ignore-changes 'self-insert))
+	    (setq unread-command-events
+		  (append unread-command-events
+			  (listify-key-sequence text)))
+	    (while unread-command-events
+	      (let* ((event(read-key-sequence-vector nil))
+		     (command (key-binding event))
+		     (this-command command)
+		     (last-command-char (elt event 0))
+		     (last-command-event (elt event 0))
+		     (last-command-keys event)
+		     )
+		(vr-log "key-sequence %s %s %s\n" event
+			command last-command-char)
+		(if (eq command 'self-insert-command)
+		    (command-execute command nil)
+		  (vr-log "command is not a self insert: %s\n"
+			  command )
+		  ;; send back a "delete command", since when
+		  ;; command is executed it will send the insertion.
+		  (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
+				     (buffer-name) (1- (point)) (point)
+				     1 (buffer-modified-tick) ""))
+			(vr-ignore-changes 'command-insert ))
+		    (setq vr-queued-changes (cons cmd
+						  vr-queued-changes))
+		    (command-execute command nil)
 		    (vr-log "executed command: %s\n" command)
-			))
-		    )))
-;	 	(mapcar (lambda (c)
-;			  (let ((last-command-char c))
-;			    ( key-binding c)))
-;			text-events))
-	      (if (equal (length text) 0)
-		  (progn
-		    (vr-log "make changes: text length is %s" (length text))
-		    (goto-char sel-start)))
-	      (vr-log "deleting mouse overlay\n")
-	      (delete-overlay mouse-drag-overlay)
-	      (if (equal sel-chars 0)
-		  (delete-overlay vr-select-overlay)
-		(move-overlay vr-select-overlay
-			      sel-start (+ sel-start sel-chars)
-			      (current-buffer)))))
+		    ))
+		)))
+	  (if (equal (length text) 0)
+	      (progn
+		(vr-log "make changes: text length is %s" (length text))
+		(goto-char sel-start)))
+	  (delete-overlay mouse-drag-overlay)
+	  (if (equal sel-chars 0)
+	      (delete-overlay vr-select-overlay)
+	    (move-overlay vr-select-overlay
+			  sel-start (+ sel-start sel-chars)
+			  (current-buffer))))
 
-	    ; in any case, we send the replies and the queued changes.
-	    (vr-log "sending tick\n")
-	    (vr-send-reply (buffer-modified-tick))
-	    (vr-send-reply (length vr-queued-changes))
-	    (mapcar 'vr-send-reply (nreverse vr-queued-changes)))))
+	;; in any case, we send the replies and the queued changes.
+	(vr-log "sending tick\n")
+	(vr-send-reply (buffer-modified-tick))
+	(vr-send-reply (length vr-queued-changes))
+	(mapcar 'vr-send-reply (nreverse vr-queued-changes))
+	(if deferred-deferred-function
+	    (progn
+	      (call-interactively deferred-deferred-function)
+	      (setq deferred-deferred-function nil)))
+	)
+    ;; if the current buffer is not VR-buffer
     (vr-send-reply "-1"))
   t)
 
