@@ -1,0 +1,6 @@
+SECTIONS
+	SHARED Read Write Shared
+
+EXPORTS
+	HookProc		@1
+
