@@ -635,6 +635,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hInstPrev,
   SetDlgItemInt(hDlg, IDC_PORT, io->get_port(), TRUE);
   SetWindowText(GetDlgItem(hDlg, IDC_STATE), io->get_state());
   SetWindowText(GetDlgItem(hDlg, IDC_HOST), "");
+  debug_lprintf(64, "Emacs VR Mode, Copyright (C) 1999 Barry Jaspan\r\n");
+  debug_lprintf(64, "This is free software, and you are welcome to redistribute it\r\nunder certain conditions; see the accompanying file COPYING.txt\r\n");
   debug_lprintf(64, "<- (listening %d)\r\n", io->get_port());
   printf("(listening %d)\n", io->get_port());
   fflush(stdout);
