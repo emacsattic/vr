@@ -1142,8 +1142,11 @@ interactively, sets the current buffer as the target buffer."
 (defun vr-zap-invisible ()
   ;; First we have to find the invisible text, if any.
   (progn
-    ;; This book gives an opportunity to set text as invisible
-    (run-hooks 'vr-invisible-hook)
+    ;; This hook gives an opportunity to set text as invisible.  The
+    ;; hook functions can absolutely not modify actual text!
+    (vr-log "running vr-invisible-hook\n")
+    (let ((vr-ignore-changes 'unconditionally))
+      (run-hooks 'vr-invisible-hook))
     (let*((invisible-region (vr-find-invisible))
 	  (start-invisible (and invisible-region
 				(car invisible-region)))
@@ -1162,8 +1165,9 @@ interactively, sets the current buffer as the target buffer."
 		    end-invisible invisible-string)
 
 	    ;; mark this text string as removed
-	    (put-text-property start-invisible end-invisible 'vr-invisible
-			       'removed)
+	    (let ((vr-ignore-changes 'unconditionally))
+	      (put-text-property start-invisible end-invisible 'vr-invisible
+				 'removed))
 	    
 	    ;; tell NaturallySpeaking it has been removed (we can't
 	    ;; actually remove it and reinsert it because that
@@ -1199,6 +1203,7 @@ interactively, sets the current buffer as the target buffer."
 	    )
 	(setq vr-floating-invisible nil))
       )))
+
 
 ;;  calculates the appropriate Emacs buffer position from a vr.exe
 ;;  position, if we have invisible text flying around.
@@ -1255,7 +1260,8 @@ interactively, sets the current buffer as the target buffer."
 	      ;; The string between start and end is marked "removed",
 	      ;; and should have that property changed and be
 	      ;; unveiled to NaturallySpeaking.
-	      (put-text-property start end 'vr-invisible t)
+	      (let ((vr-ignore-changes 'unconditionally))
+		(put-text-property start end 'vr-invisible t))
 
 	      (setq invisible-string (buffer-substring start end))
 
