@@ -6,6 +6,21 @@
 ;;
 ;; $Id$
 ;; $Log$
+;; Revision 1.8  2001/11/08 08:23:57  patrik
+;; Fixed a little bug concerning the positioning of point in
+;; make-changes.  Before we would only reposition it manually if the user
+;; made a selection or repositioning of point.  This messed up the
+;; behavior of NaturallySpeaking when point was already at the beginning
+;; of a word.  In this case, NaturallySpeaking will insert a space, but
+;; wants point to be at the end of the first word, not that the beginning
+;; of the second which is where it will be after just running the self
+;; insertion.  Solved this by making a "relative" repositioning, meaning
+;; that point is put where NaturallySpeaking wanted it to be relative to
+;; the end of the insertion string.  This solves the spacing behavior
+;; above (which also would make NaturallySpeaking refuse to scratch,
+;; since point had been moved), and even works with the deferred-function
+;; movement commands, since it is relative to where point ends up being.
+;;
 ;; Revision 1.7  2001/11/08 07:03:08  patrik
 ;; When quitting a remote Emacs, it would sometimes close the window
 ;; before VR.EXE had had time to process the shutdown, so I added a delay
@@ -1072,11 +1087,30 @@ interactively, sets the current buffer as the target buffer."
 		    (vr-log "executed command: %s\n" command)
 		    ))
 		(run-hooks 'post-command-hook)
-		)))
+		))); ends self-insert region
+	  ;; whether or not we should put point where
+	  ;; NaturallySpeaking wants is not so easy to decide.  If
+	  ;; point is not there, dictation won't work correctly if
+	  ;; there are characters in front of point.  On the other
+	  ;; hand, keys can be bound to multiple characters, and
+	  ;; deferred functions can move point in which case
+	  ;; NaturallySpeaking has no idea where it should be.  This
+	  ;; is some kind of heuristic.
 	  (if (equal (length text) 0)
+	      ;; this is a pure selection or cursor repositioning,
+	      ;; just put it there
 	      (progn
-		(vr-log "make changes: text length is %s" (length text))
-		(goto-char sel-start)))
+		(vr-log "make changes: putting point at %s\n" sel-start)
+		(goto-char sel-start))
+	    ;; Text is being inserted, so we move point to where it
+	    ;; should be relative to the end of the string we got from
+	    ;; NaturallySpeaking.  This should work even if keys are
+	    ;; bound to multiple characters, and surprisingly enough
+	    ;; even if deferred functions have moved point completely!
+	    (vr-log "make changes: positioning point relative\n")
+	    (goto-char (+ (point)
+			  (- sel-start (+ start (length text)))))
+	    )
 	  (delete-overlay mouse-drag-overlay)
 	  (if (equal sel-chars 0)
 	      (delete-overlay vr-select-overlay)
