@@ -6,9 +6,11 @@ See the file COPYING.txt for terms of use.
 Introduction
 ----------------------------------------------------------------------
 
-THIS DOCUMENT IS NO LONGER UP TO DATE.  No one else has yet expressed
-interest in helping develop VR Mode, so my motivation to keep the
-design doc current has waned.
+THIS DOCUMENT IS NO LONGER UP TO DATE.  Since Patrik currently is the
+only one actively developing VR Mode, he hasn't really been motivated
+to update this document, and it was already out of date when Barry was
+working on it... Nevertheless, it does give you an idea of how VR mode
+works, I think it's mostly the communications that have been changed.
 
 VR Mode is implemented as an Emacs minor mode with an associated
 subprocess, VR.EXE.  The subprocess uses the various IDgn COM
