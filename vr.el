@@ -5,168 +5,6 @@
 ;; See the file COPYING.txt for terms of use.
 ;;
 ;; $Id$
-;; $Log$
-;; Revision 1.9.2.4  2002/02/16 07:24:02  grifgrif
-;; Changed the get-buffer-info call so that selection and window position
-;; are sent AFTER buffer resynchronization and possible deletions due to
-;; invisible text.  That way, the positions will be "corrected" for the
-;; invisible text.
-;;
-;; Vr-point-shift is a list containing 3 numbers, the beginning of the
-;; deleted region, the position of point, and the end of the deleted
-;; region.  This is necessary so that we can shift positions before and
-;; after the invisible region correctly as well, something that is used
-;; if the utterance is a selection command.
-;;
-;; The position shifting is done in two functions vr-pfe and vr-pte (for
-;; point-from-Emacs and point-to-Emacs, respectively).  It also takes
-;; care of the "difference of 1" in the indexing between Lisp and C++.
-;; This new functions are used in get-buffer-info, make-changes and
-;; change-text, the three functions that can be called while the
-;; invisible text is invisible.  It should probably be used in all cases,
-;; since it's also a little more transparent than using 1+ and 1-...
-;;
-;; Text insertion into the invisible regions now seems to work correctly,
-;; with the restoration of the invisible text and the positioning of the
-;; cursor doing the right thing.  There seems to be a problem with the
-;; invisible text being overly "contagious", but that's likely me not
-;; setting the non-stickiness of vr-invisible properly.
-;;
-;; Revision 1.9.2.3  2001/12/17 11:01:36  grifgrif
-;; vr-zap-invisible and vr-restore-invisible now seem to work.  There
-;; were some issues with character positions and property searches
-;; running all the way to the end of the buffer, but they seem to be
-;; resolved.
-;;
-;; Dictating with point in a word marked vr-invisible now sends the
-;; proper commands to remove the invisible text from the
-;; NaturallySpeaking buffer and then reinsert it at the end of the
-;; utterance.  However, because the buffers disagree, character positions
-;; will also disagree, and this needs to be taking care of.  I've defined
-;; a variable vr-point-shift which contains the number of characters
-;; point should be shifted.  I think this is enough, but we may have to
-;; save both the length and the position of the chunks before and after
-;; point.  Anyway, the communication protocol needs to be redesigned
-;; again, because now we can't send the cursor position until after we've
-;; made this change and we know what the position in the
-;; NaturallySpeaking buffer actually should be.
-;;
-;; Revision 1.9.2.2  2001/12/14 07:21:09  grifgrif
-;; Changed the protocol so that we send a change count and changes even
-;; if we perform a complete buffer resynchronization.  This is necessary,
-;; because we can't get rid of the invisible text when we send the entire
-;; buffer contents.
-;;
-;; Also largely implemented vr-zap-invisible and vr-restore-invisible,
-;; but they don't quite work yet and are commented out.
-;;
-;; Revision 1.9.2.1  2001/12/14 02:15:14  grifgrif
-;; Inserted the necessary machinery for sending changes from the
-;; get-buffer-info call.  This only consists of setting vr-ignore-changes
-;; to queue up the requests, and then sending them at the end of
-;; vr-cmd-get-buffer-info.
-;;
-;; Also Added a check in vr-report-change for vr-ignore-changes ==
-;; unconditionally, which not totally unexpectedly always will ignore
-;; that change and not send it to NaturallySpeaking.
-;;
-;; The functions vr-zap-invisible and vr-restore-invisible will be
-;; responsible for handling the text marked "vr-invisible".  It will be
-;; deleted (as far as NaturallySpeaking knows) in get-buffer-info, and
-;; then restored (to NaturallySpeaking) in end-recognition.  We'll see if
-;; we can get it to work.
-;;
-;; Revision 1.9  2001/11/17 01:22:03  patrik
-;; Defined deferred-function as a variable, so you don't have to worry
-;; about that if you don't load pbvElse.  It also changed the list of
-;; nonlocal exit commands to a constant.
-;;
-;; Revision 1.8  2001/11/08 08:23:57  patrik
-;; Fixed a little bug concerning the positioning of point in
-;; make-changes.  Before we would only reposition it manually if the user
-;; made a selection or repositioning of point.  This messed up the
-;; behavior of NaturallySpeaking when point was already at the beginning
-;; of a word.  In this case, NaturallySpeaking will insert a space, but
-;; wants point to be at the end of the first word, not that the beginning
-;; of the second which is where it will be after just running the self
-;; insertion.  Solved this by making a "relative" repositioning, meaning
-;; that point is put where NaturallySpeaking wanted it to be relative to
-;; the end of the insertion string.  This solves the spacing behavior
-;; above (which also would make NaturallySpeaking refuse to scratch,
-;; since point had been moved), and even works with the deferred-function
-;; movement commands, since it is relative to where point ends up being.
-;;
-;; Revision 1.7  2001/11/08 07:03:08  patrik
-;; When quitting a remote Emacs, it would sometimes close the window
-;; before VR.EXE had had time to process the shutdown, so I added a delay
-;; in the kill-Emacs hook, after turning VR mode off.  Seems to work.
-;;
-;; Revision 1.6  2001/09/25 01:44:38  patrik
-;; Worked around the exit-minibuffer lockup by checking if the command
-;; about to be executed is one of the commands that never exits.  If so,
-;; it uses the deferred-function mechanism instead.  The commands for
-;; which this is done are kept in the variable vr-nonlocal-exit-commands.
-;;
-;; It seems to work well.  You cannot, of course, continue dictating
-;; after the New-Line in the minibuffer, but then doing so seems a little
-;; excessive as well...
-;;
-;; Revision 1.5  2001/09/10 23:35:10  patrik
-;; Smoothed out a number of rough edges concerning the continuous
-;; commands.  Most of the changes are in pbvElse, but there were a number
-;; of problems with the deferred-function variables not being cleared
-;; properly.  It still seems that sometimes expand-placeholder, which
-;; should be executed in make-changes, does not get run.  Instead, it
-;; will be run the next time you enter make-changes.  I have no idea why
-;; this happens.
-;;
-;; Also fixed some problems with the execute-function function, stupid
-;; Lisp stuff like whether the command sequence is a list or a vector,
-;; and so on.
-;;
-;; Also added the running of pre-command-hook and post-command-hook for
-;; our "simulated" keyboard input.  I hope that this would have cured the
-;; fact that macro definitions don't recognize the VR mode keystrokes,
-;; but it didn't.  I don't know how macros read keystrokes when they're
-;; being defined.
-;;
-;; Revision 1.4  2001/09/01 10:56:47  patrik
-;; Changed the command processing so that all commands except those
-;; specified as vectors of keystrokes are executed directly.  The
-;; advantage of doing this is that commands executed as keystrokes change
-;; the active buffer to the minibuffer, so the changes to the buffer were
-;; not communicated properly.  This was the case for yank, for example.
-;;
-;; Revision 1.3  2001/09/01 08:46:53  patrik
-;; Fixed several problems with the abbreviation mode and ELSE.  The
-;; routine handle-abbrev-expansion used to reinsert the placeholder text
-;; that ELSE would remove when you type into the placeholder.  It would
-;; then also run the commands and avoid the expansion by an on purpose
-;; error.  This messed up VR mode since the error would stop processing
-;; of the changes.  Made a very similar routine called
-;; fix-else-abbrev-expansion, which would reinsert the placeholder text
-;; but not call the command.  It's now called just before the command is
-;; executed in vr-report-change.
-;;
-;; Also made a temporary fix for the fact that expand-placeholder is not
-;; a command that returns quickly, but requires user input.  Since it is
-;; called before make-changes sends tick and change counts, vr.exe would
-;; timeout.  The fix checks if the command it is about to execute is
-;; expand-placeholder, and if it is report-changes simply doesn't do
-;; anything.  Instead, make-changes, after sending tick and change
-;; counts, checks if deferred-deferred-function is set, and in that case
-;; executes the command.  Of course this doesn't work if
-;; expand-placeholder is not the last command in the utterance, but on
-;; the other hand that doesn't make sense, because expand-placeholder
-;; requires input, so it should be the last.
-;;
-;; It still isn't perfect, because ELSE uses before-change-functions to
-;; delete the placeholder, which means that VR mode will get out of
-;; sync.  I can't think of a simple way of taking care of this, when the
-;; Emacs buffer changes before any characters have been entered, and
-;; vr.exe thinks that all the characters have already been typed, it's
-;; not straightforward to sort that out.
-;;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; User options
@@ -475,6 +313,11 @@ received.  Each hook function receives a single argument, REQ,
 which is the list representing the command and its arguments.  If any
 hook function returns non-nil, subsequent hooks on the list will not
 be called.")
+
+(defvar vr-invisible-hook nil
+  "This hook is called before VR Mode looks for \"vr-invisible\" text,
+which makes it easy to plug-in routines that make various things
+invisible.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Internal variables
@@ -1260,10 +1103,10 @@ interactively, sets the current buffer as the target buffer."
   t)
 
 
-;; This function deals with tricking NaturallySpeaking into thinking
-;; that text with the "vr-invisible" property disappears when we start
-;; speaking, if it is next to point.
-(defun vr-zap-invisible ()
+;; this function looks for vr-invisible text around point.  If it
+;; exists, it returns a cons cell of the start and end positions of
+;; the invisible text, otherwise nil.
+(defun vr-find-invisible ()
   (let ((before-invisible
 	 (and (> (point) (point-min))
 	      (get-text-property (- (point) 1) 'vr-invisible)))
@@ -1275,10 +1118,9 @@ interactively, sets the current buffer as the target buffer."
     (if (not (or before-invisible after-invisible)) 
 	 ;; point is not touching invisible text, so we don't have to
 	 ;; worry
-	(setq vr-floating-invisible nil)
+	nil
       ;; it IS touching invisible text.  Investigate further
-      (let ((start-invisible (point)) ( end-invisible (point))
-	    invisible-string (current-position (point)) )
+      (let ((start-invisible (point)) ( end-invisible (point)))
 	(if before-invisible
 	    (setq start-invisible
 		  (or
@@ -1292,34 +1134,71 @@ interactively, sets the current buffer as the target buffer."
 						'vr-invisible)
 		   (point-max))))
 
-	;; the sub string between start-invisible and end-invisible is
-	;; what should be hidden from NaturallySpeaking, and have its
-	;; invisible property marked "removed"
-	(setq invisible-string (buffer-substring start-invisible
-						 end-invisible))
-	(vr-log "zap-invisible: start %d end %d \"%s\"\n" start-invisible
-		end-invisible invisible-string)
+	(cons start-invisible end-invisible)))))
 
-	;; mark this text string as removed
-	(put-text-property 0 (length invisible-string) 'vr-invisible
-			   'removed invisible-string)
-	(save-excursion
-	  (delete-region start-invisible end-invisible)
-	  (goto-char start-invisible)
-	  ;; hide the reinsertion from NaturallySpeaking
-	  (let ((vr-ignore-changes 'unconditionally))
-	    (insert invisible-string)
-	    ))
-	;; set this so restore-invisible knows to look for the removed
-	;; text
-	(setq vr-floating-invisible t)
-	;; Emacs and NaturallySpeaking will now disagree on point
-	;; values, save the displacement info.
-	(setq vr-point-shift (list start-invisible current-position
-				   end-invisible)) 
-	(goto-char current-position)
-	(vr-log "leaving zap-invisible: point is %d\n" (point))
-	))))
+;; This function deals with tricking NaturallySpeaking into thinking
+;; that text with the "vr-invisible" property disappears when we start
+;; speaking, if it is next to point.
+(defun vr-zap-invisible ()
+  ;; First we have to find the invisible text, if any.
+  (progn
+    ;; This book gives an opportunity to set text as invisible
+    (run-hooks 'vr-invisible-hook)
+    (let*((invisible-region (vr-find-invisible))
+	  (start-invisible (and invisible-region
+				(car invisible-region)))
+	  (end-invisible (and invisible-region
+			      (cdr invisible-region)))
+	  invisible-string (current-position (point)) )
+
+      (if invisible-region
+	  (progn
+	    ;; the sub string between start-invisible and end-invisible is
+	    ;; what should be hidden from NaturallySpeaking, and have its
+	    ;; invisible property marked "removed"
+	     (setq invisible-string (buffer-substring start-invisible
+						      end-invisible))
+	    (vr-log "zap-invisible: start %d end %d \"%s\"\n" start-invisible
+		    end-invisible invisible-string)
+
+	    ;; mark this text string as removed
+	    (put-text-property start-invisible end-invisible 'vr-invisible
+			       'removed)
+	    
+	    ;; tell NaturallySpeaking it has been removed (we can't
+	    ;; actually remove it and reinsert it because that
+	    ;; confuses else mode (or any other code watching for
+	    ;; changes)
+	    (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
+			       (buffer-name)
+			       (vr-pfe start-invisible)
+			       (vr-pfe end-invisible)
+			       0 ;; it's a deletion 
+			       0 ;; tick is meaningless
+			       "")))
+	      (if vr-ignore-changes
+		  (setq vr-queued-changes (cons cmd vr-queued-changes))
+		(vr-send-cmd cmd)))
+	    
+	    ; (save-excursion
+	     ; (delete-region start-invisible end-invisible)
+	      ;(goto-char start-invisible)
+	      ;; hide the reinsertion from NaturallySpeaking
+	    ;(let ((vr-ignore-changes 'unconditionally))
+		;(insert invisible-string)
+		;) )
+	    ;; set this so restore-invisible knows to look for the removed
+	    ;; text
+	    (setq vr-floating-invisible t)
+	    ;; Emacs and NaturallySpeaking will now disagree on point
+	    ;; values, save the displacement info.
+	    (setq vr-point-shift (list start-invisible current-position
+				       end-invisible)) 
+	    ; (goto-char current-position)
+	    (vr-log "leaving zap-invisible: point is %d\n" (point))
+	    )
+	(setq vr-floating-invisible nil))
+      )))
 
 ;;  calculates the appropriate Emacs buffer position from a vr.exe
 ;;  position, if we have invisible text flying around.
@@ -1376,22 +1255,35 @@ interactively, sets the current buffer as the target buffer."
 	      ;; The string between start and end is marked "removed",
 	      ;; and should have that property changed and be
 	      ;; unveiled to NaturallySpeaking.
+	      (put-text-property start end 'vr-invisible t)
+
 	      (setq invisible-string (buffer-substring start end))
+
+	      (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
+				 (buffer-name)
+				 (vr-pfe start)
+				 (vr-pfe start)
+				 (length invisible-string) 
+				 0 ;; tick is meaningless
+				 (vr-string-replace invisible-string
+						    "\n" "\\n"))))
+		(if vr-ignore-changes
+		    (setq vr-queued-changes (cons cmd vr-queued-changes))
+		  (vr-send-cmd cmd)))
 
 	      (vr-log "restore-invisible: start %d end %d \"%s\"\n"
 		      start end invisible-string)
 	      
-	      (put-text-property 0 (length invisible-string)
-				 'vr-invisible t invisible-string)
 	      ;; hide the deletion from NaturallySpeaking
-	      (save-excursion
-		(let ((vr-ignore-changes 'unconditionally))
-		  (delete-region start end))
-		(goto-char start)
-		(insert invisible-string))
+	      ; (save-excursion
+		;(let ((vr-ignore-changes 'unconditionally))
+		;  (delete-region start end))
+	      ;(goto-char start)
+		;(insert invisible-string))
 	      ;; and update the position to look for more chunks
 	      (setq start end)))
-	  (goto-char current-position))
+	  ;(goto-char current-position)
+	  )
 	;; reset these 
 	(setq vr-floating-invisible nil)
 	(vr-log "leaving restore-invisible: point is %d\n" (point))
