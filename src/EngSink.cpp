@@ -90,6 +90,9 @@ void EngSink::recognition(const char *state)
 
   sprintf(buf, "(recognition %s)\n", state);
   
-  for (c = clients; c != NULL; c = c->next)
+  // This access of clients is safe, because it's only changed from
+  // this thread, so no race condition can happen.
+  for (c = clients; c != NULL; c = c->next) {
     c->send_cmd(buf);
+  }
 }
