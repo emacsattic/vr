@@ -126,7 +126,10 @@ STDMETHODIMP DictSink::RecognitionStarting()
 	debug_lprintf(64, "timeout waiting for text\r\n");
 	return E_FAIL;
        }
-      hRes = m_pIDgnDictCustom->TextSet(text, 0, length);
+      hRes = m_pIDgnDictCustom->TextSet(text, 0, -1);
+      // -1 because we want to replace the entire buffer, this wasn't
+      // done before
+
       ReturnIfFailed(hRes, 1, "IDgnDictCustom->TextSet() failed, hRes = 0x%X");
       
       /*
@@ -167,7 +170,18 @@ STDMETHODIMP DictSink::RecognitionStarting()
 
     hRes = m_pIDgnDictCustom->UnLock(); // unlock internal buffer
     ReturnIfFailed(hRes,0, "IDgnDictCustom->UnLock() failed, hRes = 0x%X");
-    }
+    
+    /*
+
+      // this dumps the first thousand characters of the DNS buffer
+      // for debugging purposes
+    char* buffer_dump=(char*)malloc(1000);
+    for(i = 0; i < 1000; i++)
+      buffer_dump [i]= 0;
+    m_pIDgnDictCustom->TextGet(&buffer_dump, 0, 1000);
+    debug_lprintf (1000, "DNS buffer %s:\r\n\"%s\"\r\n", name,buffer_dump);
+    */
+    } // dictation activated
 
     return S_OK; 
 }
