@@ -8,6 +8,30 @@ VR Mode integrates the features of Dragon NaturallySpeaking with GNU
 Emacs.  You must already have and be familiar with NaturallySpeaking
 3.52 and GNU Emacs 19.34 (or newer versions) in order to use VR mode.
 
+RELEASE NOTES: Release 008 beta
+
+(We're going from one beta release to another here, apparently 007
+beta worked pretty well because I didn't hear anything from people.)
+
+VR Mode should now be usable with Emacs 21.x.
+
+The biggest change is that vr.el now will convert multibyte buffers to
+unibyte before sending it to vr.exe.  Before, activating a buffer
+containing multibyte characters would make VR Mode choke since the
+number of characters sent differed from the number of bytes.  This
+would manifest itself as vr.exe saying "out of memory trying to
+allocate <ridiculously large amount of bytes>" or just hanging on the
+get-buffer-info call.  This seemed to happen particularly often under
+Emacs 21.x.  Please report any instances of this.
+
+VR Mode will also know correctly handle buffers that shrink in size.
+Before, this could cause spurious insertions of trailing spaces in the
+minibuffer.
+
+Included the patch from David Fifield that makes it possible to put
+the names of lists of commands in vr-voice-command-list.  Thanks!
+
+
 RELEASE NOTES: Release 007 (My name is Mode, VR Mode...) beta
 
 This release contains a fix for a bug that could cause vr.exe to crash
