@@ -142,6 +142,11 @@ void Client::kill_buffer(const char *name)
     return;
   }
 
+  // if it's the active buffer that's about to get killed, deactivate
+  // it first
+  if(m==activeBuffer)
+    activate_buffer(0);
+
   /* clean up */
   /* XXX we never destroy the sink */
   if (m->dict != NULL) {
