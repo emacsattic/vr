@@ -124,6 +124,13 @@ HRESULT Client::initialize()
 
 void Client::send_cmd(const char *cmd)
 {
+  // before we send the command, flush any junk remaining on the
+  // stream
+  int n_flush;
+  if ((n_flush=flush_reply_stream()) > 0)
+    debug_lprintf (64 , "flushed %d junk characters from reply stream\r\n",
+		   n_flush);
+
   io->send_line(dns_sock, num, cmd);
 }
 
@@ -145,6 +152,11 @@ char *Client::get_cmd()
 char *Client::get_reply(const char *desc)
 {
   return io->get_line(dns_sock, num, desc);
+}
+
+int Client::flush_reply_stream ()
+{
+  return io->flush_stream(dns_sock);
 }
 
 void Client::activate_frame(HWND wnd)
