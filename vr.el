@@ -6,6 +6,16 @@
 ;;
 ;; $Id$
 ;; $Log$
+;; Revision 1.10  2001/12/05 21:31:27  patrik
+;; Advised else-replicate-placeholder-string to resynchronize the buffer
+;; after a placeholder has been expanded, since that often makes it lose
+;; synch.  This is a temporary solution at best, but fixing it requires
+;; changing the communication protocol (there's a code branch for that)
+;; and then fiddling with the behavior of else.
+;;
+;; I don't like these interaction issues with other packages -- we get
+;; stuck with coding a million special cases.
+;;
 ;; Revision 1.9  2001/11/17 01:22:03  patrik
 ;; Defined deferred-function as a variable, so you don't have to worry
 ;; about that if you don't load pbvElse.  It also changed the list of
@@ -571,6 +581,19 @@ sync.  (That shouldn't happen, in an ideal world, but..."
   (interactive (list (current-buffer)))
   (set-buffer buffer)
   (setq vr-resynchronize-buffer t))
+
+;; when else-mode expands a placeholder, the buffer frequently gets
+;; out of sync.  We advise the piece of function that does this, and
+;; ask for a manual resynchronization.
+(defadvice else-replicate-placeholder-string (after
+					      resynchronize-it
+					      activate compile)
+  "make VR mode resynchronize the buffer after a placeholder has been
+expanded, since they often make it go out of sync."
+
+  (message "resynchronizing VR-buffer")
+  (call-interactively 'vr-resynchronize)
+  )
 
 (defun vr-activate-buffer-p (buffer)
   "Predicate indicating whether BUFFER matches any REGEXP element and
