@@ -54,6 +54,8 @@ MicSink *micSink = NULL;
 EngSink *engSink = NULL;
 IO *io = NULL;
 Client *clients;
+HANDLE client_mutex;
+bool exit_when_done = false; //if true, the Emacs that spawned us has exited
 
 /*
   Determines whether to exit or hide if window is closed.
@@ -177,11 +179,16 @@ HRESULT initializeNatSpeak(IO *io)
 void cleanupNatSpeak()
 {
   Client *c;
-  while (clients != NULL) {
+
+  //Ensure exclusive access to clients list
+  WaitForSingleObject (client_mutex, INFINITE);
+  while (clients!= NULL) {
     c = clients;
     clients = clients->next;
     delete c;
   }
+  ReleaseMutex (client_mutex);
+  
   if (engine) {
     engine->UnRegister (FALSE);
     engine->Release();
@@ -220,8 +227,11 @@ HWND find_window(const char *clss, const char *title)
 
 void do_connect(Client *c, HWND hDlg)
 {
+  // Ensure exclusive access to the clients list
+  WaitForSingleObject (client_mutex, INFINITE);
   c->next = clients;
   clients = c;
+  ReleaseMutex (client_mutex);
   
   SetWindowText(GetDlgItem(hDlg, IDC_STATE), io->get_state());
   SetWindowText(GetDlgItem(hDlg, IDC_HOST), c->get_host());
@@ -233,6 +243,9 @@ void do_connect(Client *c, HWND hDlg)
 void do_disconnect(Client *client, HWND hDlg)
 {
   Client *c, *p;
+
+  // Ensure exclusive access to the clients list
+  WaitForSingleObject (client_mutex, INFINITE);
 
   c = clients;
   p = NULL;
@@ -255,8 +268,9 @@ void do_disconnect(Client *client, HWND hDlg)
     clients = c->next;
   else
     p->next = c->next;
-
+  
   delete c;
+  ReleaseMutex (client_mutex);
   
   SetWindowText(GetDlgItem(hDlg, IDC_STATE), io->get_state());
   SetWindowText(GetDlgItem(hDlg, IDC_HOST), "");
@@ -266,10 +280,14 @@ void do_cmd(Client *c, HWND hDlg)
 {
   char *buf = c->get_cmd();
   if (! buf) {
+    debug_lprintf (64, "  stream closed, disconnecting client %x\r\n", c);
     do_disconnect(c, hDlg);
     io->notify();
-    return;
+    // We don't return here because we want to check if all clients
+    // have disconnected (at the end of this function).   
+    //return;
   }
+  else {
   
   char *cmd = strtok(buf, " ");
   char *arg = cmd + strlen(cmd) + 1;
@@ -297,7 +315,10 @@ void do_cmd(Client *c, HWND hDlg)
       SetForegroundWindow(c->targetWin);
     }
   } else if (strcmp(cmd, "exit") == 0) {
-    PostMessage(hDlg, WM_QUIT, 0, 0);
+    exit_when_done = true;
+    debug_lprintf(256, "  Spawning Emacs exited\r\n");
+    do_disconnect(c, hDlg);
+    //PostMessage(hDlg, WM_QUIT, 0, 0);
   } else if (strcmp(cmd, "show-window") == 0) {
     show_state = 1;
     ShowWindow(hDlg, show_state ? SW_SHOW : SW_HIDE);
@@ -344,6 +365,14 @@ void do_cmd(Client *c, HWND hDlg)
 
   free(buf);
   io->notify();
+  }
+
+  // we don't exit if there are still clients running
+  if (exit_when_done && (clients== NULL)){
+    debug_lprintf(256, "No remaining clients, exiting\r\n");
+    PostMessage(hDlg, WM_QUIT, 0, 0);
+  }
+
 }
  
 BOOL CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -375,6 +404,7 @@ BOOL CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 #define DEBUG_WINDOWS
   case WM_ACTIVATE_NOTIFY:
+    // Safe access of clients list
     for (c = clients; c != NULL; c = c->next) {
       struct enum_data data = { c->clss, c->title, NULL };
 #ifdef DEBUG_WINDOWS
