@@ -1,0 +1,127 @@
+VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
+Available at <http://www.mit.edu/~bjaspan>.
+
+Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
+See the file COPYING.txt for terms of use.
+
+VR Mode integrates the features of Dragon NaturallySpeaking with GNU
+Emacs.  You must already have and be familiar with NaturallySpeaking
+3.52 and GNU Emacs 19.34 (or newer versions) in order to use VR mode.
+
+RELEASE NOTES:  Release 005
+
+This release fixes the known bugs in V005 beta 1.
+Changes include:
+
+- Works on Windows 2000.
+
+- Reworked voice command setup; anyone who customized their voice
+command list should read the help information for
+vr-voice-command-list for the new structure.
+
+- New voice command "repeat that <0to20> times" repeats most recent
+voice command 0 to 20 times.
+
+- Fixed a synchronization bug caused when a new utterance began
+before the previous command finished.
+
+- Minibuffer activation is now properly controlled by
+vr-activate-minibuffer.
+
+- Keyboard activity is automatically locked out during speech
+recognition.
+
+- Other miscellaneous bug fixes.
+
+RELEASE NOTES:  Release 005 Beta 1
+
+Version 005 is a fairly major upgrade to VR Mode, with numerous new
+features.  Unfortunately, it may also be somewhat unstable; I suspect
+there is a memory bug lurking somewhere.  Thus, this is a beta
+release.  Please report problems or successes.  Changes include:
+
+- Added support in VR.EXE for multiple simultaneous clients, so one
+VR.EXE process can support VR Mode on multiple machines.
+
+- Added support for simple lists as arguments to voice commands, for
+example "move down 5" -> (next-line 5).  Thanks to Steve Freund.
+
+- Added support for repeating commands, for example "move up", "repeat
+yank", etc., based on code by Steve Freund.
+
+- Added numerous voice commands to vr-default-voice-command-list.
+
+- vr-win-title and vr-win-class can now contain any substring of the
+title and/or class name of the Windows window on which VR.EXE will
+activate for a given client.
+
+- "Hookified" all VR Mode protocol commands from VR.EXE, to make VR
+Mode extensions possible.
+
+- Made voice activation of the minibuffer optional.
+
+- Allow exclusion entries on vr-activation-list so you can voice
+activate, for example, "all buffers except those matching REGEXP."
+
+- Automatically shut down VR Mode when Emacs exits, without prompting
+the user for confirmation.
+
+- Support multiple Emacs frames, with DNS 4.0 or newer.
+
+RELEASE NOTES:  Release 004
+
+- Allow VR Mode in Emacs and VR.EXE to run on separate computers, so
+VR Mode can be used on Unix.
+
+- Allow voice commands to be bound to keystroke sequences, in addition
+to M-x commands.
+
+- Redesign the inter-process communication architecture to use TCP/IP
+instead of pipes.
+
+RELEASE NOTES:  Release 003
+
+This version fixes a bug in vr.el in V002 that caused Emacs to report
+an error message like "wrong argument type: overlayp, nil" every time
+the minibuffer was activated.
+
+RELEASE NOTES:  Release 002
+
+This version is a major upgrade to VR Mode, but this should still be
+considered alpha-mode software.
+
+VR Mode now allows dictation into any Emacs buffer and supports
+multiple buffer simultaneously without losing the text/voice mapping
+(see vr-activation-list).  It also allows voice execution of Emacs
+commands (see vr-voice-command-list).
+
+Auto fill mode is now supported.
+
+VR Mode will still not work properly if you use multiple Emacs
+frames.  In this release, VR Mode does actually track the changes to
+the active Emacs frames, but it appears that the Dragon
+NaturallySpeaking dictation object does not support changing Windows
+handles after it is created.  Perhaps this will be fixed in a future
+release of NaturallySpeaking.
+
+Better user documentation is needed.
+
+RELEASE NOTES:  Release 001
+
+This is the very first release of this software, so don't have high
+expectations!
+
+VR.EXE depends in the actual Windows handle (HWND) of the Emacs frame
+that is active when the program is started.  If you display a VR
+Mode target buffer in an Emacs frame other than the original frame or,
+worse, close the original frame entirely, VR Mode will not work until
+it is restarted.
+
+Auto fill mode is ignored when voice-recognized text is inserted into
+the buffer.  As a result, all paragraphs end up as one long line.  If
+auto fill mode is enabled, however, you can always say "Press Alt
+Quebec" to invoke the Emacs command fill-paragraph.
+
+The next release should contain voice-command bindings for common
+Emacs commands (find-file, etc.), hooks for post-dictation processing
+(such as by VoiceGrip), design documentation, and who knows what else.

@@ -1,0 +1,15 @@
+VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
+Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
+
+Permission is hereby granted for personal, non-commercial use and
+modification of this software.  Non-commercial use means use by an
+individual for personal benefit, whether on their own time or at work.
+Redistribution of this software as source code or as executable
+programs in its original or modified form is prohibited.
+
+Users are encouraged to enhance this software and submit their changes
+back the author for inclusion in future releases.
+
+Portions of this software were developed using the Dragon
+NaturallySpeaking Software Development Kit sample applications as
+reference material, Copyright 1999 Dragon Systems, Inc.
