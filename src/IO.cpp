@@ -302,6 +302,9 @@ int IO::flush_stream (int sock )
   while((n = select(0 /* ignored */, &rfs, NULL, NULL, &tv))>0) {
     char buf[100];
     n = recv(sock, buf, 100, 0);
+	if(n==0)
+		// end-of-file
+		break;
     ntot+=n;
   }
   return ntot;
