@@ -599,6 +599,11 @@ interactively, sets the current buffer as the target buffer."
       (save-excursion
 	(set-buffer buffer)
 	(setq vr-mode-line (concat " VR:" vr-mic-state))
+	(if (and enable-multibyte-characters  
+		 (multibyte-string-p (buffer-string)))
+	    ;; buffer contains multibyte characters -- display a
+	    ;; warning
+	    (message "Warning: Buffer contains multibyte characters, VR Mode may malfuction"))
 	(vr-send-cmd (concat "activate-buffer " (buffer-name vr-buffer)))
 	(if vr-overlay
 	    nil
@@ -711,8 +716,12 @@ interactively, sets the current buffer as the target buffer."
 			       (buffer-name (overlay-buffer overlay))
 			       (vr-pfe beg) (vr-pfe end) len
 			       (buffer-modified-tick)
-			       (vr-string-replace (buffer-substring beg end)
-						  "\n" "\\n"))))
+;;			       (encode-coding-string 
+			       (string-make-unibyte
+				(vr-string-replace 
+				 (buffer-substring beg end) "\n" "\\n"))
+;;				'iso-2022-7bit-ss2-dos)
+			       )))
 	      (if vr-ignore-changes
 		  (setq vr-queued-changes (cons cmd vr-queued-changes))
 		(vr-send-cmd cmd))))))
@@ -798,13 +807,14 @@ interactively, sets the current buffer as the target buffer."
   (interactive)
   (let* ((first t) (count 0))
     (while (and (< count 200) vr-recognizing (string= vr-mic-state "on"))
-      (if first (message "Waiting for voice recognition..."))
+      ;; (if first (message "Waiting for voice recognition..."))
       (setq first nil)
       (setq count (1+ count))
       (sleep-for 0 50))
     (if (eq count 200) 
 	(message "Time out in vr-sleep-while-recognizing!")
-      (message nil))))
+      ;; (message nil)
+      )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Subprocess communication.
@@ -999,7 +1009,7 @@ interactively, sets the current buffer as the target buffer."
 	    (if (and (not vr-resynchronize-buffer) (eq our-tick dns-tick))
 		(vr-send-reply "0 not modified")
 	      (vr-send-reply "1 modified")
-	      (setq vr-text (buffer-string))
+	      (setq vr-text (string-make-unibyte (buffer-string)))
 	      (vr-send-reply (length vr-text))
 	      (vr-send-reply vr-text))
 	    
@@ -1043,7 +1053,7 @@ interactively, sets the current buffer as the target buffer."
 	    (vr-log "buffer resynchronization requested \n"))
 	(vr-send-reply "1 modified")
 	; (vr-send-reply (format "%d" (buffer-modified-tick)))
-	(setq vr-text (buffer-string))
+	(setq vr-text (string-make-unibyte (buffer-string)))
 	(vr-send-reply (length vr-text))
 	(vr-send-reply vr-text)
 	(setq vr-resynchronize-buffer nil))
@@ -1095,9 +1105,10 @@ interactively, sets the current buffer as the target buffer."
 				 (buffer-name) (vr-pfe start)
 				 (+ (vr-pfe start) num-chars) (length text)
 				 (buffer-modified-tick)
-				 (vr-string-replace (buffer-substring start
-								      (+ start num-chars))
-						    "\n" "\\n"))))
+				 (string-make-unibyte
+				  (vr-string-replace
+				   (buffer-substring start (+ start num-chars))
+				   "\n" "\\n")))))
 		(setq vr-queued-changes (cons cmd
 					      vr-queued-changes))))
 	    
