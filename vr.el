@@ -824,21 +824,23 @@ interactively, sets the current buffer as the target buffer."
 	  ))))
 
 (defun vr-sentinel (p s)
-  (if (equal s "finished\n")
+  (if (equal s "disconnect\n")
       (progn
 	(if (processp vr-process)
 	    (delete-process vr-process))
+	(setq vr-process nil)))
+  (if (or (equal s "disconnect\n")(equal s "finished\n"))
+      (progn
 	(if (processp vr-emacs-cmds)
 	    (delete-process vr-emacs-cmds))
 	(if (processp vr-dns-cmds)
 	    (delete-process vr-dns-cmds))
-	(setq vr-process nil
-	      vr-emacs-cmds nil
+	(setq vr-emacs-cmds nil
 	      vr-dns-cmds nil))
     (error "VR process exited with status \"%s\"" s)))
 
 (defun vr-cmd-listening (vr-request)
-  (vr-connect "127.0.0.1" (nth 1 vr-request))
+  (vr-connect "127.0.0.1" (nth 1 vr-request) t)
   t)
 
 (defun vr-cmd-connected (vr-request)
@@ -1538,7 +1540,7 @@ off -> on, {on,sleeping} -> off."
 ;; Subprocess initialization, including voice commands.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun vr-connect (host port)
+(defun vr-connect (host port fatal)
   (condition-case e
       (progn
 	(setq vr-emacs-cmds (open-network-stream "vr-emacs" nil
@@ -1551,10 +1553,17 @@ off -> on, {on,sleeping} -> off."
 	(if vr-process
 	    (set-process-filter vr-process nil))
 	t)
-    ('error (progn
+    ('error
+      (progn
+	(if fatal
+	    ;; if fatal is nil, we're just trying to connect to a
+	    ;; local server that might be hanging around.  in that
+	    ;; case, we will spawn a server, so don't turn off VR
+	    ;; mode.
+	    (progn
 	      (vr-mode 0)
-	      (message "VR Mode: cannot connect to %s:%d" host port)
-	      nil))))
+	      (message "VR Mode: cannot connect to %s:%d" host port)))
+	nil))))
 
 ;; functionp isn't defined in Win 95 Emacs 19.34.6 (!??!?)
 (defun vr-functionp (object)
@@ -1638,13 +1647,16 @@ instructions.
 	(run-hooks 'vr-mode-setup-hook)
 
 	(if vr-host
-	    (vr-connect vr-host vr-port)
-	  (setq vr-process (start-process "vr" " *vr*" vr-command
+	    (vr-connect vr-host vr-port t)
+	  (if (and vr-port (vr-connect "localhost" vr-port nil))
+	      (message "connecting to already running server")
+	    (progn
+		(setq vr-process (start-process "vr" " *vr*" vr-command
 					  "-child"
 					  "-port" (int-to-string vr-port)))
-	  (process-kill-without-query vr-process)
-	  (set-process-filter vr-process 'vr-output-filter)
-	  (set-process-sentinel vr-process 'vr-sentinel))
+		(process-kill-without-query vr-process)
+		(set-process-filter vr-process 'vr-output-filter)
+		(set-process-sentinel vr-process 'vr-sentinel))))
 	)
     
     ;; Leaving VR mode
@@ -1653,8 +1665,9 @@ instructions.
     (remove-hook 'kill-buffer-hook 'vr-kill-buffer)
     (vr-activate-buffer nil)
     (if vr-host
-	(vr-sentinel nil "finished\n")
-      (vr-send-cmd "exit"))
+	 (vr-sentinel nil "disconnect\n")
+      (vr-send-cmd "exit")
+      (vr-sentinel nil "finished\n")) 
     (run-hooks 'vr-mode-cleanup-hook)
     )
   (force-mode-line-update)
