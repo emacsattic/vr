@@ -2,24 +2,8 @@
   VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
 
   Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
-
-  This file is part of Emacs VR Mode.
-
-  Emacs VR Mode is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; either version 2 of the License, or (at
-  your option) any later version.
-
-  Emacs VR Mode is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with Emacs VR Mode; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
-  USA
-*/
+  See the file COPYING.txt for terms of use.
+  */
 
 #include <windows.h>
 #include <stdio.h>
@@ -392,6 +376,8 @@ BOOL CALLBACK DialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	sprintf(buf, "(frame-activated %d)\n", (long) wParam);
 	c->send_cmd(buf);
       } else {
+	// inform the client that it has been deactivated
+	c->deactivate_frame ();
 #ifdef DEBUG_WINDOWS
 	debug_lprintf(1024,
 		      "Wnd (%d) %s/%s doesn't match %s/%s\r\n",
@@ -636,8 +622,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hInstPrev,
   SetDlgItemInt(hDlg, IDC_PORT, io->get_port(), TRUE);
   SetWindowText(GetDlgItem(hDlg, IDC_STATE), io->get_state());
   SetWindowText(GetDlgItem(hDlg, IDC_HOST), "");
-  debug_lprintf(64, "Emacs VR Mode, Copyright (C) 1999 Barry Jaspan\r\n");
-  debug_lprintf(64, "This is free software, and you are welcome to redistribute it\r\nunder certain conditions; see the accompanying file COPYING.txt\r\n");
   debug_lprintf(64, "<- (listening %d)\r\n", io->get_port());
   printf("(listening %d)\n", io->get_port());
   fflush(stdout);
