@@ -1,7 +1,9 @@
 ;;
 ;; VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
 ;;
-;; Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
+;; Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>, 2001-2003, 2007
+;; Patrik Jonsson <patrik-voice at familjenjonsson.org>.  All rights
+;; reserved.
 ;;
 ;; $Id$
 ;;
