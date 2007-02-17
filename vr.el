@@ -156,6 +156,8 @@ along with all the commands on vr-default-voice-command-list.")
     ("scroll down" . scroll-down)
     ("page down" . scroll-up)
     ("page up" . scroll-down)
+    ("page-down" . scroll-up)
+    ("page-up" . scroll-down)
     ("beginning of line" . beginning-of-line)
     ("end of line" . end-of-line)
     ("beginning of buffer" . beginning-of-buffer)
@@ -632,6 +634,13 @@ interactively, sets the current buffer as the target buffer."
 
 (defvar vr-overlay-before-count 0 "see comment in vr-grow-overlay")
 
+; In emacs 22 and up we use buffer-chars-modified-tick to track
+; changes so we don't get confused by properties changes
+(defun vr-buffer-tick nil
+  (if (functionp 'buffer-chars-modified-tick)
+      (buffer-chars-modified-tick)
+    (buffer-modified-tick)))
+
 (defun vr-grow-overlay (overlay after beg end &optional len)
   ;; Make OVERLAY grow to contain range START to END.  If called "before"
   ;; twice before called "after", only call vr-overlay-modified once.
@@ -722,7 +731,7 @@ interactively, sets the current buffer as the target buffer."
 	    (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
 			       (buffer-name (overlay-buffer overlay))
 			       (vr-pfe beg) (vr-pfe end) len
-			       (buffer-modified-tick)
+			       (vr-buffer-tick)
 ;;			       (encode-coding-string 
 			       (string-make-unibyte
 				(vr-string-replace 
@@ -993,7 +1002,7 @@ interactively, sets the current buffer as the target buffer."
 (defun vr-cmd-get-buffer-info (vr-request)
   (let ((buffer (nth 1 vr-request))
 	(dns-tick (nth 2 vr-request))
-	(our-tick (buffer-modified-tick))
+	(our-tick (vr-buffer-tick))
 	vr-queued-changes
 	(vr-ignore-changes 'buffer-info) 
 	vr-text)
@@ -1034,7 +1043,7 @@ interactively, sets the current buffer as the target buffer."
 	    (vr-send-reply (vr-pfe (point)))
 	    (vr-send-reply (vr-pfe (window-start)))
 	    (vr-send-reply (vr-pfe (window-end)))
-	    (vr-send-reply (format "%d" (buffer-modified-tick)))
+	    (vr-send-reply (format "%d" (vr-buffer-tick)))
 	    ))
 
       ;;
@@ -1060,8 +1069,8 @@ interactively, sets the current buffer as the target buffer."
 	(if vr-resynchronize-buffer
 	    (vr-log "buffer resynchronization requested \n"))
 	(vr-send-reply "1 modified")
-	; (vr-send-reply (format "%d" (buffer-modified-tick)))
 	(setq vr-text (string-make-unibyte (buffer-string)))
+	(set-text-properties 0 (length vr-text) nil vr-text)
 	(vr-send-reply (length vr-text))
 	(vr-send-reply vr-text)
 	(setq vr-resynchronize-buffer nil))
@@ -1087,7 +1096,7 @@ interactively, sets the current buffer as the target buffer."
       (vr-send-reply (vr-pfe (window-start)))
       (vr-send-reply (vr-pfe (window-end)))
       ;; and the current buffer tick
-      (vr-send-reply (format "%d" (buffer-modified-tick)))
+      (vr-send-reply (format "%d" (vr-buffer-tick)))
       
 ;(sleep-for 0 100)
 ;  (yank)
@@ -1112,7 +1121,7 @@ interactively, sets the current buffer as the target buffer."
 	      (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
 				 (buffer-name) (vr-pfe start)
 				 (+ (vr-pfe start) num-chars) (length text)
-				 (buffer-modified-tick)
+				 (vr-buffer-tick)
 				 (string-make-unibyte
 				  (vr-string-replace
 				   (buffer-substring start (+ start num-chars))
@@ -1154,7 +1163,7 @@ interactively, sets the current buffer as the target buffer."
 		  (let ((cmd (format "change-text \"%s\" %d %d %d %d %s"
 				     (buffer-name) (vr-pfe (point))
 				     (1+ (vr-pfe (point)))
-				     1 (buffer-modified-tick) ""))
+				     1 (vr-buffer-tick) ""))
 			(vr-ignore-changes 'command-insert ))
 		    (setq vr-queued-changes (cons cmd
 						  vr-queued-changes))
@@ -1210,7 +1219,7 @@ interactively, sets the current buffer as the target buffer."
 
 	;; in any case, we send the replies and the queued changes.
 	(vr-log "sending tick\n")
-	(vr-send-reply (buffer-modified-tick))
+	(vr-send-reply (vr-buffer-tick))
 	(vr-send-reply (length vr-queued-changes))
 	(mapcar 'vr-send-reply (nreverse vr-queued-changes))
 	(if vr-deferred-deferred-function
@@ -1303,7 +1312,7 @@ interactively, sets the current buffer as the target buffer."
 			       (vr-pfe start-invisible)
 			       (vr-pfe end-invisible)
 			       0 ;; it's a deletion 
-			       (buffer-modified-tick)
+			       (vr-buffer-tick)
 			       ;; tick is meaningless -- no it's not
 			       "")))
 	      (if vr-ignore-changes
@@ -1396,7 +1405,7 @@ interactively, sets the current buffer as the target buffer."
 				 (vr-pfe start)
 				 (vr-pfe start)
 				 (length invisible-string) 
-				 (buffer-modified-tick)
+				 (vr-buffer-tick)
 				 (vr-string-replace invisible-string
 						    "\n" "\\n"))))
 		(if vr-ignore-changes
@@ -1508,33 +1517,49 @@ interactively, sets the current buffer as the target buffer."
 	     (error "Unknown VR request: %s" vr-request))
 	    ))))
 
+; use bindat, if available, to pack the messages and get byte order
+; correct, since the vr-etonl function doesn't work past v21
+(require 'bindat nil t)
+
+(setq vr-length-pack-spec '((length u32) (msg str (length))))
+
+
+(defun vr-pack-msg (msg)
+  (if (featurep 'bindat)
+      (bindat-pack vr-length-pack-spec 
+		   (list (cons 'length (length msg))
+			 (cons 'msg msg)))
+    ; fall back to old method
+    (let ((i (length msg)))
+      (format "%c%c%c%c%s"
+	    (lsh (logand i 4278190080) -24)
+	    (lsh (logand i 16711680) -16)
+	    (lsh (logand i 65280) -8)
+	    (logand i 255)
+	    msg))))
+  
 (defun vr-send-reply (msg)
   (if (and vr-dns-cmds (eq (process-status vr-dns-cmds) 'open))
       (progn
 	(if (integerp msg)
 	    (setq msg (int-to-string msg)))
-	(if vr-log-send
-	    (vr-log "<- r %s\n" msg))
-	(process-send-string vr-dns-cmds (vr-etonl (length msg)))
-	(process-send-string vr-dns-cmds msg))
+	(let ((pmsg (vr-pack-msg msg)))
+	  (if vr-log-send
+	      (progn
+		(vr-log "<- r %d '%s'\n" (length msg) msg)
+		(vr-log "   packed '%s'\n" pmsg)))
+	  (process-send-string vr-dns-cmds pmsg)))
     (message "VR Mode DNS reply channel is not open!")))
 
 (defun vr-send-cmd (msg)
   (if (and vr-emacs-cmds (eq (process-status vr-emacs-cmds) 'open))
-      (progn
+      (let ((pmsg (vr-pack-msg msg)))
 	(if vr-log-send
-	    (vr-log "<- c %s\n" msg))
-	(process-send-string vr-emacs-cmds (vr-etonl (length msg)))
-	(process-send-string vr-emacs-cmds msg))
+	    (progn
+	      (vr-log "<- c %d '%s'\n" (length msg) msg)
+	      (vr-log "   packed '%s'\n" pmsg)))
+  	(process-send-string vr-emacs-cmds pmsg))
     (message "VR Mode command channel is not open: %s" msg)))
-
-;; ewww
-(defun vr-etonl (i)
-  (format "%c%c%c%c"
-	  (lsh (logand i 4278190080) -24)
-	  (lsh (logand i 16711680) -16)
-	  (lsh (logand i 65280) -8)
-	  (logand i 255)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Subprocess commands
@@ -1570,6 +1595,8 @@ off -> on, {on,sleeping} -> off."
 						 host port))
 	(vr-log "connecting to VR.exe %s" vr-emacs-cmds)
 	(setq vr-dns-cmds (open-network-stream "vr-dns" nil host port))
+	(set-process-coding-system vr-emacs-cmds 'no-conversion 'no-conversion)
+	(set-process-coding-system vr-dns-cmds 'no-conversion 'no-conversion)
 	(process-kill-without-query vr-emacs-cmds)
 	(process-kill-without-query vr-dns-cmds)
 	(set-process-filter vr-dns-cmds 'vr-output-filter)
@@ -1596,7 +1623,8 @@ off -> on, {on,sleeping} -> off."
       (and (symbolp object) (fboundp object))))
 
 (defun vr-strip-dash (symbol)
-  (concat (mapcar (lambda (x) (if (eq x ?-) ?\ x)) (symbol-name symbol))))
+  "Substitute dashes for spaces in the command names."
+  (concat (mapcar (lambda (x) (if (eq x ?\-) ?\  x)) (symbol-name symbol))))
 
 (defun vr-startup ()
   "Initialize any per-execution state of the VR Mode subprocess."
