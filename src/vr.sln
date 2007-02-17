@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual C++ Express 2005
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hook", "hook.vcproj", "{C418862A-A8BE-4597-8441-250C0AA5DAB8}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vr", "vr.vcproj", "{08D42446-A5DE-4087-A785-1209450CDAE3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Dueebug|Win32 = Dueebug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C418862A-A8BE-4597-8441-250C0AA5DAB8}.Debug|Win32.ActiveCfg = Debug|Win32
+		{C418862A-A8BE-4597-8441-250C0AA5DAB8}.Debug|Win32.Build.0 = Debug|Win32
+		{C418862A-A8BE-4597-8441-250C0AA5DAB8}.Dueebug|Win32.ActiveCfg = Debug|Win32
+		{C418862A-A8BE-4597-8441-250C0AA5DAB8}.Dueebug|Win32.Build.0 = Debug|Win32
+		{C418862A-A8BE-4597-8441-250C0AA5DAB8}.Release|Win32.ActiveCfg = Release|Win32
+		{C418862A-A8BE-4597-8441-250C0AA5DAB8}.Release|Win32.Build.0 = Release|Win32
+		{08D42446-A5DE-4087-A785-1209450CDAE3}.Debug|Win32.ActiveCfg = Debug|Win32
+		{08D42446-A5DE-4087-A785-1209450CDAE3}.Debug|Win32.Build.0 = Debug|Win32
+		{08D42446-A5DE-4087-A785-1209450CDAE3}.Dueebug|Win32.ActiveCfg = Dueebug|Win32
+		{08D42446-A5DE-4087-A785-1209450CDAE3}.Dueebug|Win32.Build.0 = Dueebug|Win32
+		{08D42446-A5DE-4087-A785-1209450CDAE3}.Release|Win32.ActiveCfg = Release|Win32
+		{08D42446-A5DE-4087-A785-1209450CDAE3}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
