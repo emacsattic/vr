@@ -1,13 +1,25 @@
 VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
 	Available at http://emacs-vr-mode.sourceforge.net.
 
-Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
+Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>, 2001-2003, 2007 Patrik
+Jonsson <patrik-voice at familjenjonsson.org>. All rights reserved.
 See the file COPYING.txt for terms of use.
 
 VR Mode integrates the features of Dragon NaturallySpeaking with GNU
 Emacs.  You must already have and be familiar with NaturallySpeaking
 3.52 and GNU Emacs 19.34 (or newer versions) in order to use VR mode.
 However, there are problems with Emacs 21.x.
+
+
+RELEASE NOTES: Release 010
+
+Fixed some problems that prevented VR Mode from working with Emacs
+versions 22 and higher.  Most of the problems have to do with the
+development of Emacs going towards using multibyte characters in all
+kinds of places.  Hopefully it should now be usable and stable with
+newer versions of Emacs.  I think at this point version 21.x is the
+worst option, because of the tendency to resynchronize the buffer at
+every utterance.  However, it is still functional even in this case.
 
 
 RELEASE NOTES: Release 009
