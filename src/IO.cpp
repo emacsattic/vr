@@ -103,6 +103,8 @@ void IO::send_line(int sock, int clnt, const char *cmd)
     debug_lprintf(len+32, "%X <- %s\r\n", clnt, cmd);
 }
 
+// Changed to return the number of bytes read instead of -1 if there's
+// a problem.
 int IO::read_fully(int sock, char *buf, int len)
 {
   struct timeval tv;
@@ -116,13 +118,13 @@ int IO::read_fully(int sock, char *buf, int len)
     tv.tv_sec = 5; tv.tv_usec = 0;
     n = select(0 /* ignored */, &rfs, NULL, NULL, &tv);
     if (n <= 0)
-      return -1;
+      return t;
     else {
       n = recv(sock, buf, len, 0);
       if (n < 0)
-	return -1;
+		return t;
       else if (n == 0)
-	return t == 0 ? 0 : -1;
+		return t;
       buf += n;
       len -= n;
       t += n;
@@ -147,10 +149,11 @@ char *IO::get_line(int sock, int clnt, const char *desc)
     debug_lprintf(64, "EOF from %s\r\n", get_host(sock));
     return NULL;
   } else if (n < 0) {
-    debug_lprintf(64, "FAILED: %d, %d reading len\r\n", n, WSAGetLastError());
+    debug_lprintf(64, "FAILED: wanted %d, read %d, Error %d reading data\r\n", len, n, WSAGetLastError());
     return NULL;
   }
   len = ntohl(len);
+  debug_lprintf(64, " (%d) ", len);
 
   l = (char *)malloc(len+1);
   if (l == NULL) {
@@ -160,7 +163,8 @@ char *IO::get_line(int sock, int clnt, const char *desc)
   l[len] = 0;
 
   if ((n = read_fully(sock, l, len)) != len) {
-    debug_lprintf(64, "FAILED: %d, %d reading data\r\n", n, WSAGetLastError());
+    debug_lprintf(64, "FAILED: wanted %d, read %d, Error %d reading data\r\n", len, n, WSAGetLastError());
+    debug_lprintf(64, "Got: %s\r\n\r\n", l);
     free(l);
     return NULL;
   }
