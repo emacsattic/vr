@@ -1,7 +1,9 @@
 /*
   VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
 
-  Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
+  Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>, 2001-2003, 2007
+  Patrik Jonsson <patrik-voice at familjenjonsson.org>.  All rights
+  reserved.
 
   This file is part of Emacs VR Mode.
 
@@ -301,8 +303,8 @@ void do_cmd(Client *c, HWND hDlg)
       c->clss = NULL;
     if (c->title && strcmp(c->title, "nil") == 0)
       c->title = NULL;
-    c->clss = c->clss ? strdup(c->clss) : NULL;
-    c->title = c->title ? strdup(c->title) : NULL;
+    c->clss = c->clss ? _strdup(c->clss) : NULL;
+    c->title = c->title ? _strdup(c->title) : NULL;
     c->targetWin = find_window(c->clss, c->title);
     if (c->targetWin == NULL)
       c->send_cmd("(initialize no-window)\n");
@@ -577,7 +579,7 @@ void set_registry(HWND hDlg)
 int parse_argv(char *cmdline, char ***pargv)
 {
   char **argv;
-  char *c = strdup(cmdline), *p;
+  char *c = _strdup(cmdline), *p;
   int argc, size;
 
   size = 4;

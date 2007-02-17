@@ -1,7 +1,9 @@
 /*
   VR Mode - integration of GNU Emacs and Dragon NaturallySpeaking.
 
-  Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>.  All rights reserved.
+  Copyright 1999 Barry Jaspan, <bjaspan@mit.edu>, 2001-2003, 2007
+  Patrik Jonsson <patrik-voice at familjenjonsson.org>.  All rights
+  reserved.
 
   This file is part of Emacs VR Mode.
 
@@ -68,7 +70,7 @@ int Client::create_buffer(BufMap *map, const char *name)
 
   dwFlags = dgnregGlobalCM; /* XXX why not dgnregNone? */
 
-  map->bufnam = strdup(name);
+  map->bufnam = _strdup(name);
   assert(map->bufnam);
   
   /*
