@@ -11,6 +11,18 @@ Emacs.  You must already have and be familiar with NaturallySpeaking
 However, there are problems with Emacs 21.x.
 
 
+RELEASE NOTES: Release 011
+
+This is identical to R010 except that it is now possible to run VR
+Mode in "no-window mode" by setting both vr-class and vr-window to
+nil. In this mode, VR Mode will attach the functionality to the VR
+Process window itself and when this is active send dictation to the
+connected Emacs. What's the point? This makes it possible to run DNS
+and VR Mode under Parallels/Windows in MacOS and dictate into a Mac Emacs!
+Since DNS can't see which Mac window is active, this was the simplest
+way of doing it.
+
+
 RELEASE NOTES: Release 010
 
 Fixed some problems that prevented VR Mode from working with Emacs
