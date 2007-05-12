@@ -305,18 +305,36 @@ void do_cmd(Client *c, HWND hDlg)
       c->title = NULL;
     c->clss = c->clss ? _strdup(c->clss) : NULL;
     c->title = c->title ? _strdup(c->title) : NULL;
-    c->targetWin = find_window(c->clss, c->title);
-    if (c->targetWin == NULL)
-      c->send_cmd("(initialize no-window)\n");
-    else if(!skip_dns && FAILED(c->initialize()))
-      c->send_cmd("(initialize failed)\n");
+    if ((c->title == NULL) && (c->clss == NULL)) {
+      // if both are blank we go into "no-window" mode where
+      // foreground window is the vr mode window itself.  bad code
+      // duplication here -- apart from find_window it's identical to
+      // the normal init case
+  c->targetWin = find_window(NULL, "VR Mode Process Status");
+      if(skip_dns || !FAILED(c->initialize())) {
+	DgnMicStateConstants state;
+	BOOL paused;
+	c->send_cmd("(initialize succeeded)\n");
+	microphone->MicStateGet(&state, &paused);
+	micSink->MicStateChanged(state, paused);
+	debug_lprintf(256, "  No-Window Mode!\r\n");
+	SetForegroundWindow(c->targetWin);
+      }
+    }
     else {
-      DgnMicStateConstants state;
-      BOOL paused;
-      c->send_cmd("(initialize succeeded)\n");
-      microphone->MicStateGet(&state, &paused);
-      micSink->MicStateChanged(state, paused);
-      SetForegroundWindow(c->targetWin);
+      c->targetWin = find_window(c->clss, c->title);
+      if (c->targetWin == NULL)
+	c->send_cmd("(initialize no-window)\n");
+      else if(!skip_dns && FAILED(c->initialize()))
+	c->send_cmd("(initialize failed)\n");
+      else {
+	DgnMicStateConstants state;
+	BOOL paused;
+	c->send_cmd("(initialize succeeded)\n");
+	microphone->MicStateGet(&state, &paused);
+	micSink->MicStateChanged(state, paused);
+	SetForegroundWindow(c->targetWin);
+      }
     }
   } else if (strcmp(cmd, "exit") == 0) {
     exit_when_done = true;
